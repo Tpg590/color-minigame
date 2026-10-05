@@ -2,9 +2,9 @@
 <html lang="vi">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Color Spill: Mini Game - Cuộc Chiến Sắc Màu</title>
-  <meta name="description" content="Mini game mở rộng lãnh thổ màu sắc offline đấu với Bot thông minh. Chọn màu, đặt tên, bao vây chiếm đất và leo top!" />
+  <meta name="description" content="Mini game mở rộng lãnh thổ màu sắc chơi mượt trên cả Điện Thoại và Máy Tính. Tạo phòng chia sẻ link chơi cùng bạn bè!" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&family=Orbitron:wght@600;800;900&display=swap" rel="stylesheet">
@@ -55,6 +55,7 @@
         </div>
 
         <div class="hud-actions">
+          <button id="btnFullscreen" class="btn-icon" title="Toàn màn hình">⛶</button>
           <button id="btnSoundToggle" class="btn-icon" title="Bật/Tắt âm thanh">🔊</button>
           <button id="btnInGameTutorial" class="btn-icon" title="Xem hướng dẫn">❓</button>
           <button id="btnPause" class="btn-icon" title="Tạm dừng">⏸️</button>
@@ -203,8 +204,9 @@
               <div class="code-row">
                 <span id="displayRoomCode" class="room-code-text">CSP-XXXX</span>
                 <button id="btnCopyCode" type="button" class="btn-icon-pill" title="Sao chép">📋 Sao chép</button>
+                <button id="btnShareCode" type="button" class="btn-icon-pill" title="Chia sẻ link phòng">📲 Chia sẻ</button>
               </div>
-              <span class="code-sub">Gửi mã này cho bạn bè để cùng vào chiến!</span>
+              <span class="code-sub">Gửi mã hoặc link này cho bạn bè trên điện thoại hoặc máy tính để vào cùng chiến!</span>
             </div>
 
             <div class="lobby-player-list">
@@ -286,21 +288,26 @@
 
           <!-- SIDE LEADERBOARD -->
           <aside class="live-leaderboard glassmorphism" id="liveLeaderboard">
-            <div class="lb-header">
-              <span class="lb-icon">🏆</span>
-              <span>BẢNG XẾP HẠNG</span>
+            <div class="lb-header" id="lbHeader">
+              <div class="lb-header-title">
+                <span class="lb-icon">🏆</span>
+                <span>BẢNG XẾP HẠNG</span>
+              </div>
+              <button id="btnToggleLb" class="btn-lb-toggle" type="button" aria-label="Thu gọn hoặc mở rộng bảng xếp hạng">▾</button>
             </div>
-            <ul class="lb-list" id="lbList">
-              <!-- Dynamically populated -->
-            </ul>
+            <div class="lb-body" id="lbBody">
+              <ul class="lb-list" id="lbList">
+                <!-- Dynamically populated -->
+              </ul>
 
-            <div class="powerup-legend">
-              <div class="legend-title">⚡ VẬT PHẨM TRÊN SÂN</div>
-              <div class="legend-grid">
-                <div class="legend-item"><span class="legend-ico">⚡</span> Tốc độ</div>
-                <div class="legend-item"><span class="legend-ico">💣</span> Bom sơn</div>
-                <div class="legend-item"><span class="legend-ico">🛡️</span> Khiên đuôi</div>
-                <div class="legend-item"><span class="legend-ico">❄️</span> Đóng băng</div>
+              <div class="powerup-legend">
+                <div class="legend-title">⚡ VẬT PHẨM TRÊN SÂN</div>
+                <div class="legend-grid">
+                  <div class="legend-item"><span class="legend-ico">⚡</span> Tốc độ</div>
+                  <div class="legend-item"><span class="legend-ico">💣</span> Bom sơn</div>
+                  <div class="legend-item"><span class="legend-ico">🛡️</span> Khiên đuôi</div>
+                  <div class="legend-item"><span class="legend-ico">❄️</span> Đóng băng</div>
+                </div>
               </div>
             </div>
           </aside>
@@ -308,11 +315,15 @@
 
         <!-- ON-SCREEN MOBILE CONTROLS -->
         <div class="mobile-controls" id="mobileControls">
-          <div class="dpad">
-            <button class="dpad-btn dpad-up" data-dir="up">▲</button>
-            <button class="dpad-btn dpad-left" data-dir="left">◀</button>
-            <button class="dpad-btn dpad-right" data-dir="right">▶</button>
-            <button class="dpad-btn dpad-down" data-dir="down">▼</button>
+          <div class="mobile-control-bar">
+            <span class="mobile-hint">👆 <strong>Vuốt màn hình</strong> hoặc <strong>chạm phím ảo</strong></span>
+            <button id="btnToggleDpad" type="button" class="btn-dpad-toggle">🕹️ Phím: Bật</button>
+          </div>
+          <div class="dpad" id="virtualDpad">
+            <button class="dpad-btn dpad-up" data-dir="up" aria-label="Lên">▲</button>
+            <button class="dpad-btn dpad-left" data-dir="left" aria-label="Trái">◀</button>
+            <button class="dpad-btn dpad-right" data-dir="right" aria-label="Phải">▶</button>
+            <button class="dpad-btn dpad-down" data-dir="down" aria-label="Xuống">▼</button>
           </div>
         </div>
       </section>

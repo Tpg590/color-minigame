@@ -256,6 +256,27 @@ class ColorSpillGame {
       });
     });
 
+    // Native Mobile Share API
+    const shareBtn = document.getElementById('btnShareCode');
+    if (shareBtn) {
+      shareBtn.addEventListener('click', () => {
+        const code = this.network.roomCode || document.getElementById('displayRoomCode').textContent.replace('CSP-', '');
+        const shareUrl = `${window.location.origin}${window.location.pathname}?room=CSP-${code}`;
+        if (navigator.share) {
+          navigator.share({
+            title: 'Vào chiến game Color Spill với tôi!',
+            text: `Mã phòng: CSP-${code}. Bấm link để vào phòng ngay!`,
+            url: shareUrl
+          }).catch(() => {});
+        } else {
+          navigator.clipboard.writeText(shareUrl).then(() => {
+            shareBtn.textContent = '✓ Đã chép link!';
+            setTimeout(() => { shareBtn.textContent = '📲 Chia sẻ'; }, 1500);
+          });
+        }
+      });
+    }
+
     // Cancel Host
     document.getElementById('btnCancelHost').addEventListener('click', () => {
       this.network.disconnect();
@@ -321,6 +342,27 @@ class ColorSpillGame {
         this.renderWaitingPlayerList('guestPlayerList', players);
       }
     };
+
+    // Auto-detect room link from URL (?room=CSP-XXXX or ?room=XXXX)
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const roomParam = urlParams.get('room');
+      if (roomParam) {
+        const cleanCode = roomParam.trim().toUpperCase();
+        const directInput = document.getElementById('joinDirectCodeInput');
+        if (directInput) {
+          directInput.value = cleanCode;
+        }
+        this.switchView('viewFindRoom');
+        const statusEl = document.getElementById('directJoinStatus');
+        if (statusEl) {
+          statusEl.textContent = `✨ Đã nhận mã ${cleanCode} từ link chia sẻ! Bấm "VÀO PHÒNG" để tham chiến.`;
+          statusEl.className = 'join-status-text text-teal';
+        }
+      }
+    } catch (e) {
+      console.warn('URL param parse error:', e);
+    }
   }
 
   attemptJoinRoom(code, password) {
@@ -463,6 +505,51 @@ class ColorSpillGame {
       document.getElementById('btnSoundToggle').textContent = enabled ? '🔊' : '🔇';
     });
 
+    // Fullscreen toggle for Mobile and Desktop
+    const btnFullscreen = document.getElementById('btnFullscreen');
+    if (btnFullscreen) {
+      btnFullscreen.addEventListener('click', () => {
+        if (!document.fullscreenElement) {
+          const target = document.documentElement;
+          if (target.requestFullscreen) target.requestFullscreen().catch(() => {});
+          else if (target.webkitRequestFullscreen) target.webkitRequestFullscreen();
+          btnFullscreen.textContent = '✖️';
+          btnFullscreen.title = 'Thoát toàn màn hình';
+        } else {
+          if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
+          else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+          btnFullscreen.textContent = '⛶';
+          btnFullscreen.title = 'Toàn màn hình';
+        }
+      });
+      document.addEventListener('fullscreenchange', () => {
+        btnFullscreen.textContent = document.fullscreenElement ? '✖️' : '⛶';
+      });
+    }
+
+    // Leaderboard collapse toggle on Mobile
+    const btnToggleLb = document.getElementById('btnToggleLb');
+    const liveLb = document.getElementById('liveLeaderboard');
+    if (btnToggleLb && liveLb) {
+      btnToggleLb.addEventListener('click', () => {
+        liveLb.classList.toggle('lb-collapsed');
+        btnToggleLb.textContent = liveLb.classList.contains('lb-collapsed') ? '▸' : '▾';
+      });
+    }
+
+    // Toggle virtual D-pad buttons
+    const btnToggleDpad = document.getElementById('btnToggleDpad');
+    const virtualDpad = document.getElementById('virtualDpad');
+    if (btnToggleDpad && virtualDpad) {
+      let dpadVisible = true;
+      btnToggleDpad.addEventListener('click', () => {
+        dpadVisible = !dpadVisible;
+        virtualDpad.style.display = dpadVisible ? 'grid' : 'none';
+        btnToggleDpad.textContent = dpadVisible ? '🕹️ Phím: Bật' : '🕹️ Phím: Tắt';
+        btnToggleDpad.classList.toggle('active', dpadVisible);
+      });
+    }
+
     // Game Over Actions
     document.getElementById('btnPlayAgain').addEventListener('click', () => {
       document.getElementById('gameOverModal').classList.add('hidden');
@@ -477,7 +564,7 @@ class ColorSpillGame {
       this.showLobby();
     });
 
-    // Keyboard controls
+    // Keyboard controls (PC)
     window.addEventListener('keydown', (e) => {
       if (!this.gameRunning || this.gamePaused) return;
       const p = this.players[this.myPlayerId];
@@ -524,16 +611,64 @@ class ColorSpillGame {
       }
     });
 
-    // Mobile D-pad controls
+    // Mobile D-pad button controls (Touch & Click)
     document.querySelectorAll('.dpad-btn').forEach(btn => {
       btn.addEventListener('touchstart', (e) => {
         e.preventDefault();
         this.handleDirectionInput(btn.dataset.dir);
-      });
+      }, { passive: false });
       btn.addEventListener('click', () => {
         this.handleDirectionInput(btn.dataset.dir);
       });
     });
+
+    // Mobile Canvas Touch Swipe Gesture Detection
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let isTouching = false;
+    const swipeThreshold = 18; // Minimum distance in pixels to trigger a turn
+
+    const onTouchStart = (e) => {
+      if (e.touches && e.touches.length > 0) {
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+        isTouching = true;
+      }
+    };
+
+    const onTouchMove = (e) => {
+      if (!isTouching || !this.gameRunning || this.gamePaused || !e.touches || e.touches.length === 0) return;
+
+      const currentX = e.touches[0].clientX;
+      const currentY = e.touches[0].clientY;
+      const deltaX = currentX - touchStartX;
+      const deltaY = currentY - touchStartY;
+      const dist = Math.hypot(deltaX, deltaY);
+
+      if (dist >= swipeThreshold) {
+        if (e.cancelable) e.preventDefault(); // Prevent page scroll while swiping
+        if (Math.abs(deltaX) > Math.abs(deltaY)) {
+          this.handleDirectionInput(deltaX > 0 ? 'right' : 'left');
+        } else {
+          this.handleDirectionInput(deltaY > 0 ? 'down' : 'up');
+        }
+        // Continuous drag tracking: re-anchor to current position
+        touchStartX = currentX;
+        touchStartY = currentY;
+      }
+    };
+
+    const onTouchEnd = () => {
+      isTouching = false;
+    };
+
+    const canvasContainer = document.getElementById('canvasContainer');
+    if (canvasContainer) {
+      canvasContainer.addEventListener('touchstart', onTouchStart, { passive: true });
+      canvasContainer.addEventListener('touchmove', onTouchMove, { passive: false });
+      canvasContainer.addEventListener('touchend', onTouchEnd, { passive: true });
+      canvasContainer.addEventListener('touchcancel', onTouchEnd, { passive: true });
+    }
 
     window.addEventListener('resize', () => this.resizeCanvas());
   }
@@ -551,6 +686,10 @@ class ColorSpillGame {
 
     if (newDir) {
       p.nextDir = newDir;
+      // Tactile Haptic Vibration for Mobile Devices
+      if (navigator.vibrate) {
+        try { navigator.vibrate(10); } catch (err) {}
+      }
       if (this.network.isOnline && !this.network.isHost) {
         this.network.sendInputToHost(newDir);
       }
@@ -558,7 +697,7 @@ class ColorSpillGame {
   }
 
   resizeCanvas() {
-    const maxSize = Math.min(window.innerWidth - 32, 640);
+    const maxSize = Math.min(window.innerWidth - 20, 680);
     const size = Math.max(320, maxSize);
     this.canvas.width = size;
     this.canvas.height = size;
@@ -1903,8 +2042,8 @@ class ColorSpillGame {
   // MINIMAP RADAR (SCREEN-SPACE CORNER OVERLAY)
   // ----------------------------------------------------
   drawMinimap(ctx) {
-    const mapSize = 120;
-    const pad = 12;
+    const mapSize = Math.max(72, Math.min(120, Math.floor(this.canvas.width * 0.22)));
+    const pad = Math.max(8, Math.floor(this.canvas.width * 0.02));
     const mx = this.canvas.width - mapSize - pad;
     const my = this.canvas.height - mapSize - pad;
 
