@@ -285,6 +285,11 @@ class ColorSpillGame {
 
     // Host Start Match
     document.getElementById('btnHostStartMatch').addEventListener('click', () => {
+      if (this.network.lobbyPlayers.length < 2) {
+        if (!confirm('Hiện tại chỉ có một mình bạn trong phòng (chế độ online không có Bot). Bạn có chắc muốn vào đấu trường một mình để thử nghiệm không?')) {
+          return;
+        }
+      }
       this.startOnlineMatchAsHost();
     });
 
@@ -874,55 +879,29 @@ class ColorSpillGame {
     ];
 
     if (isOnlineMatch) {
+      // ONLINE MODE: 100% human players, NO BOTS!
       const netPlayers = this.network.lobbyPlayers;
-      for (let i = 0; i < 4; i++) {
-        const netP = netPlayers[i];
-        if (netP) {
-          // Connected human player
-          this.players.push({
-            id: i,
-            isBot: false,
-            name: netP.name,
-            color: netP.color,
-            isAlive: true,
-            x: 0, y: 0,
-            prevX: 0, prevY: 0,
-            dir: { x: 0, y: 0 },
-            nextDir: { x: 0, y: 0 },
-            moveTimer: 0,
-            moveInterval: 0.12,
-            trail: [],
-            score: 0,
-            kills: 0,
-            speedBoostUntil: 0,
-            hasShield: false,
-            frozenUntil: 0
-          });
-        } else {
-          // Fill missing slot with Bot
-          const botColor = COLOR_PALETTE[(i + 3) % COLOR_PALETTE.length].hex;
-          this.players.push({
-            id: i,
-            isBot: true,
-            name: BOT_NAMES[i],
-            color: botColor,
-            isAlive: true,
-            x: 0, y: 0,
-            prevX: 0, prevY: 0,
-            dir: { x: 0, y: 0 },
-            nextDir: { x: 0, y: 0 },
-            moveTimer: 0,
-            moveInterval: this.getBotSpeed(),
-            trail: [],
-            score: 0,
-            kills: 0,
-            speedBoostUntil: 0,
-            hasShield: false,
-            frozenUntil: 0,
-            stepsInTrail: 0
-          });
-        }
-      }
+      netPlayers.forEach((netP, idx) => {
+        this.players.push({
+          id: idx,
+          isBot: false,
+          name: netP.name,
+          color: netP.color,
+          isAlive: true,
+          x: 0, y: 0,
+          prevX: 0, prevY: 0,
+          dir: { x: 0, y: 0 },
+          nextDir: { x: 0, y: 0 },
+          moveTimer: 0,
+          moveInterval: 0.12,
+          trail: [],
+          score: 0,
+          kills: 0,
+          speedBoostUntil: 0,
+          hasShield: false,
+          frozenUntil: 0
+        });
+      });
     } else {
       // Pure Offline vs 3 Bots
       const availableColors = COLOR_PALETTE.map(c => c.hex).filter(hex => hex !== this.selectedColor);
@@ -1555,21 +1534,22 @@ class ColorSpillGame {
     const myP = this.players[this.myPlayerId];
     if (!myP || !myP.isAlive) return;
 
-    const counts = [0, 0, 0, 0];
+    const counts = {};
+    this.players.forEach(p => { counts[p.id] = 0; });
     for (let r = 0; r < this.GRID_ROWS; r++) {
       for (let c = 0; c < this.GRID_COLS; c++) {
         const o = this.grid[r][c].owner;
-        if (o !== null) counts[o]++;
+        if (o !== null && counts[o] !== undefined) counts[o]++;
       }
     }
 
-    const myPct = (counts[this.myPlayerId] / totalTiles) * 100;
+    const myPct = (((counts[this.myPlayerId] || 0) / totalTiles) * 100);
     const livingRivals = this.players.filter(p => p.id !== this.myPlayerId && p.isAlive).length;
 
     if (myPct >= 35.0) {
       window.sounds.playWin();
       this.finishMatch(true, `Chiến thắng vang dội! Bạn đã làm chủ ${myPct.toFixed(1)}% đại đấu trường!`);
-    } else if (livingRivals === 0) {
+    } else if (this.players.length > 1 && livingRivals === 0) {
       window.sounds.playWin();
       this.finishMatch(true, 'Toàn bộ đối thủ đã bị quét sạch!');
     }
@@ -1634,7 +1614,8 @@ class ColorSpillGame {
   // ----------------------------------------------------
   updateHUD() {
     const totalTiles = this.GRID_COLS * this.GRID_ROWS;
-    const tileCounts = [0, 0, 0, 0];
+    const tileCounts = {};
+    this.players.forEach(p => { tileCounts[p.id] = 0; });
     for (let r = 0; r < this.GRID_ROWS; r++) {
       for (let c = 0; c < this.GRID_COLS; c++) {
         const o = this.grid[r][c].owner;
@@ -1646,13 +1627,13 @@ class ColorSpillGame {
     document.getElementById('hudScore').textContent = myP.score;
     document.getElementById('hudKills').textContent = myP.kills;
 
-    const myPct = ((tileCounts[this.myPlayerId] / totalTiles) * 100).toFixed(1);
+    const myPct = (((tileCounts[this.myPlayerId] || 0) / totalTiles) * 100).toFixed(1);
     document.getElementById('playerTerritoryPct').textContent = `${myPct}%`;
 
     const barEl = document.getElementById('territoryBar');
     barEl.innerHTML = '';
     this.players.forEach(p => {
-      const pct = (tileCounts[p.id] / totalTiles) * 100;
+      const pct = ((tileCounts[p.id] || 0) / totalTiles) * 100;
       if (pct > 0.4) {
         const seg = document.createElement('div');
         seg.className = 't-seg';
