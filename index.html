@@ -68,59 +68,82 @@
       <!-- SCREEN 1: LOBBY / SETUP SCREEN -->
       <section id="setupScreen" class="screen setup-screen">
         <div class="lobby-card glassmorphism">
-          <div class="lobby-badge">⚔️ OFFLINE BOT ARENA</div>
-          <h1 class="hero-title">ĐẤU TRƯỜNG <span class="gradient-text">SẮC MÀU</span></h1>
-          <p class="hero-subtitle">Hoá thân thành khối màu ma thuật, bao vây chiếm đóng lãnh thổ & tiêu diệt các Bot đối thủ!</p>
 
-          <!-- PLAYER NAME INPUT -->
-          <div class="form-group">
-            <label for="playerNameInput">TÊN ĐẤU SĨ CỦA BẠN:</label>
-            <div class="input-with-action">
-              <input type="text" id="playerNameInput" maxlength="14" placeholder="Nhập tên của bạn..." value="ChromaKnight" autocomplete="off" />
-              <button id="btnRandomName" type="button" class="btn-secondary btn-dice" title="Tạo tên ngẫu nhiên">🎲</button>
-            </div>
-          </div>
+          <!-- VIEW 1: MAIN MENU (Default View) -->
+          <div id="viewMain" class="lobby-view">
+            <div class="lobby-badge">⚔️ COLOR SPILL ARENA</div>
+            <h1 class="hero-title">ĐẤU TRƯỜNG <span class="gradient-text">SẮC MÀU</span></h1>
+            <p class="hero-subtitle">Hoá thân thành khối màu ma thuật, bao vây chiếm đất & săn đối thủ!</p>
 
-          <!-- COLOR PICKER -->
-          <div class="form-group">
-            <label>CHỌN MÀU CHIẾN ĐỘI CỦA BẠN:</label>
-            <div class="color-palette" id="colorPalette">
-              <!-- Rendered via JS: Coral, Teal, Yellow, Violet, Lime, Pink, Cyan, Orange -->
-            </div>
-          </div>
-
-          <!-- CHARACTER PREVIEW CARD -->
-          <div class="player-preview-card" id="playerPreviewCard">
-            <div class="preview-avatar-wrapper">
-              <div class="preview-avatar" id="previewAvatar">
-                <span class="preview-crown">👑</span>
-                <div class="preview-eyes">
-                  <span class="eye"></span>
-                  <span class="eye"></span>
-                </div>
+            <!-- 1. TÊN ĐẤU SĨ -->
+            <div class="form-group">
+              <label for="playerNameInput">TÊN ĐẤU SĨ CỦA BẠN:</label>
+              <div class="input-with-action">
+                <input type="text" id="playerNameInput" maxlength="14" placeholder="Nhập tên của bạn..." value="ChromaKnight" autocomplete="off" />
+                <button id="btnRandomName" type="button" class="btn-secondary btn-dice" title="Tạo tên ngẫu nhiên">🎲</button>
               </div>
             </div>
-            <div class="preview-info">
-              <div class="preview-tag">NHÂN VẬT CỦA BẠN TRONG TRẬN</div>
-              <div class="preview-name" id="previewPlayerName">ChromaKnight <span class="badge-you">(BẠN)</span></div>
-              <div class="preview-hint">✨ Vào trận sẽ có <strong>Vương Miện 👑 + Vòng Sáng Radar</strong> định vị ngay!</div>
-            </div>
-          </div>
 
-          <!-- GAME MODE SELECTOR TABS -->
-          <div class="form-group">
-            <label>CHẾ ĐỘ CHƠI:</label>
-            <div class="segmented-control mode-tabs" id="gameModeTabs">
-              <button type="button" class="seg-btn active" data-mode="offline">🤖 Offline vs Bot</button>
-              <button type="button" class="seg-btn" data-mode="host">👑 Tạo Phòng Online</button>
-              <button type="button" class="seg-btn" data-mode="join">🔑 Vào Bằng Mã Code</button>
-            </div>
-          </div>
-
-          <!-- PANEL 1: OFFLINE MODE -->
-          <div id="modePanelOffline" class="mode-panel">
+            <!-- 2. CHỌN MÀU CHIẾN ĐỘI -->
             <div class="form-group">
-              <label>MỨC ĐỘ THỬ THÁCH (BOT AI):</label>
+              <label>CHỌN MÀU CHIẾN ĐỘI CỦA BẠN:</label>
+              <div class="color-palette" id="colorPalette">
+                <!-- Rendered via JS -->
+              </div>
+            </div>
+
+            <!-- 3. INFO NHÂN VẬT TRONG TRẬN -->
+            <div class="player-preview-card" id="playerPreviewCard">
+              <div class="preview-avatar-wrapper">
+                <div class="preview-avatar" id="previewAvatar">
+                  <span class="preview-crown">👑</span>
+                  <div class="preview-eyes">
+                    <span class="eye"></span>
+                    <span class="eye"></span>
+                  </div>
+                </div>
+              </div>
+              <div class="preview-info">
+                <div class="preview-tag">NHÂN VẬT CỦA BẠN TRONG TRẬN</div>
+                <div class="preview-name" id="previewPlayerName">ChromaKnight <span class="badge-you">(BẠN)</span></div>
+                <div class="preview-hint">✨ Luôn có <strong>Vương Miện 👑 + Vòng Sáng Radar</strong> định vị ngay!</div>
+              </div>
+            </div>
+
+            <!-- 4. 3 NÚT LỚN THEO YÊU CẦU -->
+            <div class="main-menu-buttons">
+              <button id="btnNavOffline" type="button" class="btn-primary btn-menu-large">
+                <span class="btn-icon-lead">🤖</span> CHƠI VỚI MÁY
+              </button>
+              <button id="btnNavFindRoom" type="button" class="btn-secondary btn-menu-large">
+                <span class="btn-icon-lead">🔍</span> TÌM PHÒNG
+              </button>
+              <button id="btnNavCreateRoom" type="button" class="btn-secondary btn-menu-large">
+                <span class="btn-icon-lead">👑</span> TẠO PHÒNG
+              </button>
+            </div>
+
+            <div class="lobby-footer-actions">
+              <button id="btnOpenTutorial" type="button" class="btn-text">
+                <span>📖</span> Hướng dẫn luật chơi
+              </button>
+              <div class="lobby-footer-stats">
+                Kỷ lục: <strong id="bestScoreText" class="text-yellow">0</strong> pts • Mục tiêu thắng: <strong class="text-teal">&ge; 35%</strong> bản đồ
+              </div>
+            </div>
+          </div>
+
+          <!-- VIEW 2: CHƠI VỚI MÁY (BOT) -->
+          <div id="viewOffline" class="lobby-view hidden">
+            <div class="view-header">
+              <button class="btn-back" type="button" data-back="viewMain">← Quay lại</button>
+              <h2>🤖 CHƠI VỚI MÁY</h2>
+              <div></div>
+            </div>
+            <p class="view-desc">Chiến đấu với 3 Bot AI trên đại chiến trường 56x56 ô gạch có camera theo dõi!</p>
+
+            <div class="form-group">
+              <label>CHỌN ĐỘ KHÓ CỦA BOT:</label>
               <div class="segmented-control" id="difficultyControl">
                 <button type="button" class="seg-btn" data-diff="easy">Tập Sự</button>
                 <button type="button" class="seg-btn active" data-diff="normal">Chiến Binh</button>
@@ -128,85 +151,126 @@
               </div>
             </div>
 
-            <div class="lobby-actions">
-              <button id="btnStartGame" class="btn-primary btn-pulse">
-                <span class="btn-icon-lead">⚡</span> VÀO TRẬN CHIẾN NGAY
-              </button>
-              <button id="btnOpenTutorial" class="btn-secondary">
-                <span class="btn-icon-lead">📖</span> HƯỚNG DẪN LUẬT CHƠI
-              </button>
-            </div>
+            <button id="btnStartOffline" type="button" class="btn-primary btn-pulse w-full mt-20">
+              <span class="btn-icon-lead">⚡</span> VÀO TRẬN CHIẾN NGAY
+            </button>
           </div>
 
-          <!-- PANEL 2: HOST ROOM ONLINE -->
-          <div id="modePanelHost" class="mode-panel hidden">
-            <div class="online-box">
-              <div id="hostInitialState">
-                <p class="online-desc">Tạo phòng và nhận mã code để gửi cho bạn bè cùng vào so tài!</p>
-                <button id="btnCreateRoom" type="button" class="btn-primary btn-pulse w-full">
-                  <span class="btn-icon-lead">🌐</span> TẠO PHÒNG VÀ LẤY MÃ CODE
-                </button>
-              </div>
-
-              <div id="hostWaitingState" class="hidden">
-                <div class="room-code-display">
-                  <span class="code-label">MÃ PHÒNG CỦA BẠN:</span>
-                  <div class="code-row">
-                    <span id="displayRoomCode" class="room-code-text">CSP-XXXX</span>
-                    <button id="btnCopyCode" type="button" class="btn-icon-pill" title="Sao chép mã">📋 Sao chép</button>
-                  </div>
-                  <span class="code-sub">Chia sẻ mã này để bạn bè nhập vào mục "Vào Bằng Mã Code"!</span>
-                </div>
-
-                <div class="lobby-player-list">
-                  <div class="list-title">DANH SÁCH ĐẤU THỦ TRONG PHÒNG:</div>
-                  <ul id="hostPlayerList" class="waiting-list">
-                    <!-- Populated dynamically via JS -->
-                  </ul>
-                </div>
-
-                <div class="lobby-actions">
-                  <button id="btnHostStartMatch" type="button" class="btn-primary btn-pulse">
-                    <span class="btn-icon-lead">🚀</span> BẮT ĐẦU TRẬN ĐẤU (HOST)
-                  </button>
-                  <button id="btnCancelHost" type="button" class="btn-secondary">
-                    Hủy Phòng
-                  </button>
-                </div>
-              </div>
+          <!-- VIEW 3: TẠO PHÒNG (CREATE ROOM) -->
+          <div id="viewCreateRoom" class="lobby-view hidden">
+            <div class="view-header">
+              <button class="btn-back" type="button" data-back="viewMain">← Quay lại</button>
+              <h2>👑 TẠO PHÒNG ONLINE</h2>
+              <div></div>
             </div>
-          </div>
 
-          <!-- PANEL 3: JOIN ROOM ONLINE -->
-          <div id="modePanelJoin" class="mode-panel hidden">
-            <div class="online-box">
-              <p class="online-desc">Nhập mã code từ chủ phòng (ví dụ: <strong class="text-teal">CSP-8492</strong> hoặc <strong class="text-teal">8492</strong>):</p>
+            <div class="form-group">
+              <label>TÊN PHÒNG:</label>
               <div class="input-with-action">
-                <input type="text" id="joinRoomCodeInput" placeholder="Nhập mã code phòng..." maxlength="10" autocomplete="off" />
-                <button id="btnSubmitJoin" type="button" class="btn-primary">
-                  VÀO PHÒNG
-                </button>
+                <input type="text" id="createRoomNameInput" value="Phòng của ChromaKnight" maxlength="22" />
               </div>
-              <div id="joinStatusText" class="join-status-text"></div>
+            </div>
 
-              <div id="joinWaitingState" class="hidden mt-14">
-                <div class="lobby-player-list">
-                  <div class="list-title">ĐANG Ở TRONG PHÒNG <span id="joinedRoomCodeTitle" class="text-yellow"></span>:</div>
-                  <ul id="joinPlayerList" class="waiting-list">
-                    <!-- Populated dynamically via JS -->
-                  </ul>
-                  <div class="waiting-hint">⏳ Đang chờ Chủ phòng (Host) bấm nút bắt đầu...</div>
-                </div>
-                <button id="btnLeaveJoin" type="button" class="btn-secondary mt-10">Rời Phòng</button>
+            <div class="form-group">
+              <label>CHẾ ĐỘ PHÒNG:</label>
+              <div class="segmented-control" id="roomPrivacyControl">
+                <button type="button" class="seg-btn active" data-privacy="public">🌐 Công Khai (Public)</button>
+                <button type="button" class="seg-btn" data-privacy="private">🔒 Riêng Tư (Private)</button>
+              </div>
+            </div>
+
+            <!-- Password field for Private rooms -->
+            <div class="form-group hidden" id="roomPasswordGroup">
+              <label>MẬT KHẨU PHÒNG <span class="text-coral">* (Bắt buộc)</span>:</label>
+              <input type="password" id="createRoomPasswordInput" placeholder="Nhập mật khẩu phòng..." maxlength="16" />
+              <div class="input-hint">Phòng riêng tư bắt buộc phải có mật khẩu. Người khác vào phòng phải nhập đúng mật khẩu.</div>
+            </div>
+
+            <button id="btnConfirmCreateRoom" type="button" class="btn-primary btn-pulse w-full mt-20">
+              <span class="btn-icon-lead">🚀</span> TẠO PHÒNG & LẤY MÃ CODE
+            </button>
+          </div>
+
+          <!-- VIEW 4: PHÒNG CHỜ CỦA HOST -->
+          <div id="viewHostWaiting" class="lobby-view hidden">
+            <div class="view-header">
+              <h2>👑 PHÒNG CHỜ CỦA BẠN</h2>
+              <span id="hostPrivacyBadge" class="badge-privacy">🌐 Công Khai</span>
+            </div>
+
+            <div class="room-code-display">
+              <span class="code-label">MÃ PHÒNG (ROOM CODE):</span>
+              <div class="code-row">
+                <span id="displayRoomCode" class="room-code-text">CSP-XXXX</span>
+                <button id="btnCopyCode" type="button" class="btn-icon-pill" title="Sao chép">📋 Sao chép</button>
+              </div>
+              <span class="code-sub">Gửi mã này cho bạn bè để cùng vào chiến!</span>
+            </div>
+
+            <div class="lobby-player-list">
+              <div class="list-title">DANH SÁCH ĐẤU THỦ TRONG PHÒNG (<span id="hostPlayerCount">1</span>/4):</div>
+              <ul id="hostPlayerList" class="waiting-list"></ul>
+            </div>
+
+            <div class="lobby-actions">
+              <button id="btnHostStartMatch" type="button" class="btn-primary btn-pulse">
+                <span class="btn-icon-lead">🚀</span> BẮT ĐẦU TRẬN ĐẤU
+              </button>
+              <button id="btnCancelHost" type="button" class="btn-secondary">
+                Hủy Phòng
+              </button>
+            </div>
+          </div>
+
+          <!-- VIEW 5: TÌM PHÒNG (FIND ROOM) -->
+          <div id="viewFindRoom" class="lobby-view hidden">
+            <div class="view-header">
+              <button class="btn-back" type="button" data-back="viewMain">← Quay lại</button>
+              <h2>🔍 TÌM PHÒNG ONLINE</h2>
+              <div></div>
+            </div>
+
+            <!-- Option 1: Direct Room Code Input -->
+            <div class="find-section">
+              <label>CÁCH 1: NHẬP MÃ PHÒNG TRỰC TIẾP</label>
+              <div class="input-with-action">
+                <input type="text" id="joinDirectCodeInput" placeholder="Ví dụ: CSP-8492 hoặc 8492..." maxlength="10" />
+                <button id="btnJoinDirect" type="button" class="btn-primary">VÀO PHÒNG</button>
+              </div>
+              <div id="directJoinStatus" class="join-status-text"></div>
+            </div>
+
+            <div class="divider-text"><span>HOẶC</span></div>
+
+            <!-- Option 2: Active Room List on Network -->
+            <div class="find-section">
+              <div class="section-row">
+                <label>CÁCH 2: PHÒNG ĐANG MỞ TRÊN MẠNG</label>
+                <button id="btnRefreshRooms" type="button" class="btn-icon-pill">🔄 Làm mới</button>
+              </div>
+              <div id="publicRoomsContainer" class="rooms-container">
+                <!-- Dynamically rendered via JS -->
               </div>
             </div>
           </div>
 
-          <div class="lobby-footer">
-            <span>Kỷ lục cao nhất: <strong id="bestScoreText" class="text-yellow">0</strong> pts</span>
-            <span>•</span>
-            <span>Mục tiêu thắng: <strong class="text-teal">Chiếm &ge; 40%</strong> bản đồ</span>
+          <!-- VIEW 6: PHÒNG CHỜ CỦA KHÁCH (GUEST WAITING) -->
+          <div id="viewGuestWaiting" class="lobby-view hidden">
+            <div class="view-header">
+              <h2>🎮 PHÒNG CHỜ (<span id="guestRoomCodeTitle" class="text-teal"></span>)</h2>
+            </div>
+
+            <div class="lobby-player-list">
+              <div class="list-title">DANH SÁCH ĐẤU THỦ TRONG PHÒNG:</div>
+              <ul id="guestPlayerList" class="waiting-list"></ul>
+              <div class="waiting-hint">⏳ Đang chờ Chủ phòng bấm nút bắt đầu trận đấu...</div>
+            </div>
+
+            <button id="btnLeaveGuest" type="button" class="btn-secondary w-full mt-20">
+              Rời Phòng
+            </button>
           </div>
+
         </div>
       </section>
 
@@ -366,8 +430,26 @@
       </div>
     </div>
 
+    <!-- MODAL 4: PASSWORD PROMPT FOR PRIVATE ROOMS -->
+    <div id="passwordModal" class="modal-backdrop hidden">
+      <div class="modal-card glassmorphism text-center">
+        <h2>🔒 PHÒNG NÀY CÓ MẬT KHẨU</h2>
+        <p class="view-desc text-center">Chủ phòng đã khóa phòng này. Vui lòng nhập mật khẩu để tham gia:</p>
+        <div class="form-group mt-14">
+          <input type="password" id="inputRoomPassword" placeholder="Nhập mật khẩu phòng..." autocomplete="off" />
+          <div id="passwordErrorText" class="text-coral mt-8"></div>
+        </div>
+        <div class="modal-actions-col">
+          <button class="btn-primary" id="btnSubmitPassword">XÁC NHẬN VÀO PHÒNG</button>
+          <button class="btn-secondary" id="btnCancelPassword">HỦY</button>
+        </div>
+      </div>
+    </div>
+
   </div>
 
+  <!-- MQTT Client for Public Room Discovery on Serverless Vercel -->
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
   <!-- WebRTC PeerJS for Serverless P2P Online Multiplayer -->
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <!-- Audio Synthesizer -->

@@ -1,6 +1,6 @@
 // ========================================================
-// COLOR SPILL - PEER-TO-PEER WEBRTC NETWORK MANAGER (PEERJS)
-// Zero server cost, 100% works on static Vercel hosting!
+// COLOR SPILL - NETWORK MANAGER (P2P WebRTC + MQTT Room Discovery)
+// Serverless: 100% runs on static Vercel with zero backend costs!
 // ========================================================
 
 class NetworkManager {
@@ -10,10 +10,18 @@ class NetworkManager {
     this.isHost = false;
     this.isOnline = false;
     this.roomCode = null;
+    this.roomInfo = null;
     this.connections = []; // For Host: list of guest data connections
     this.hostConn = null;  // For Guest: connection to host
     this.lobbyPlayers = [];
     this.peerPrefix = 'csp-v1-';
+
+    // MQTT Discovery Client
+    this.mqttClient = null;
+    this.discoveredRooms = {};
+    this.heartbeatInterval = null;
+
+    this.initMqttDiscovery();
   }
 
   generateRoomCode() {
@@ -26,14 +34,102 @@ class NetworkManager {
   }
 
   // ----------------------------------------------------
+  // MQTT PUBLIC ROOM DISCOVERY
+  // ----------------------------------------------------
+  initMqttDiscovery() {
+    if (typeof mqtt === 'undefined') return;
+
+    try {
+      // Connect to free public WebSockets MQTT broker
+      this.mqttClient = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
+        clientId: 'csp_' + Math.random().toString(16).substr(2, 8),
+        keepalive: 30,
+        reconnectPeriod: 5000
+      });
+
+      this.mqttClient.on('connect', () => {
+        this.mqttClient.subscribe('colorspill/arena/rooms/#');
+      });
+
+      this.mqttClient.on('message', (topic, payload) => {
+        try {
+          const info = JSON.parse(payload.toString());
+          if (info && info.code) {
+            info.lastSeen = Date.now();
+            this.discoveredRooms[info.code] = info;
+            if (this.game.onRoomsUpdated) {
+              this.game.onRoomsUpdated(this.getCleanRoomList());
+            }
+          }
+        } catch (e) {}
+      });
+    } catch (err) {
+      console.warn('MQTT Discovery init error (fallback to direct code):', err);
+    }
+  }
+
+  getCleanRoomList() {
+    const now = Date.now();
+    const list = [];
+    for (const code in this.discoveredRooms) {
+      const r = this.discoveredRooms[code];
+      // Prune rooms silent for more than 7 seconds
+      if (now - r.lastSeen < 7000) {
+        list.push(r);
+      } else {
+        delete this.discoveredRooms[code];
+      }
+    }
+    return list;
+  }
+
+  startRoomHeartbeat() {
+    clearInterval(this.heartbeatInterval);
+    this.heartbeatInterval = setInterval(() => {
+      if (this.isHost && this.roomInfo && this.mqttClient && this.mqttClient.connected) {
+        const payload = {
+          code: this.roomCode,
+          name: this.roomInfo.name,
+          hostName: this.roomInfo.hostName,
+          isPrivate: this.roomInfo.isPrivate,
+          count: this.lobbyPlayers.length,
+          max: 4,
+          timestamp: Date.now()
+        };
+        this.mqttClient.publish(
+          `colorspill/arena/rooms/${this.roomCode}`,
+          JSON.stringify(payload),
+          { qos: 0 }
+        );
+      }
+    }, 2500);
+  }
+
+  stopRoomHeartbeat() {
+    clearInterval(this.heartbeatInterval);
+    if (this.mqttClient && this.mqttClient.connected && this.roomCode) {
+      // Clear topic
+      this.mqttClient.publish(`colorspill/arena/rooms/${this.roomCode}`, '', { qos: 0 });
+    }
+  }
+
+  // ----------------------------------------------------
   // HOST: CREATE ROOM
   // ----------------------------------------------------
-  createRoom(localPlayerInfo, onReady, onError) {
+  createRoom(config, localPlayerInfo, onReady, onError) {
     this.isHost = true;
     this.isOnline = true;
     this.connections = [];
     this.roomCode = this.generateRoomCode();
     const peerId = this.peerPrefix + this.roomCode.toLowerCase();
+
+    this.roomInfo = {
+      code: this.roomCode,
+      name: config.roomName || `Phòng của ${localPlayerInfo.name}`,
+      hostName: localPlayerInfo.name,
+      isPrivate: config.isPrivate,
+      password: config.password || ''
+    };
 
     if (this.peer) this.peer.destroy();
 
@@ -52,17 +148,16 @@ class NetworkManager {
       return;
     }
 
-    this.peer.on('open', (id) => {
+    this.peer.on('open', () => {
       this.lobbyPlayers = [
         { id: 0, name: localPlayerInfo.name, color: localPlayerInfo.color, isHost: true }
       ];
-      if (onReady) onReady(this.roomCode);
+      this.startRoomHeartbeat();
+      if (onReady) onReady(this.roomCode, this.roomInfo);
     });
 
     this.peer.on('connection', (conn) => {
       conn.on('open', () => {
-        this.connections.push(conn);
-
         conn.on('data', (data) => {
           this.handleHostReceivedData(conn, data);
         });
@@ -84,7 +179,7 @@ class NetworkManager {
   // ----------------------------------------------------
   // GUEST: JOIN ROOM
   // ----------------------------------------------------
-  joinRoom(code, localPlayerInfo, onJoined, onError) {
+  joinRoom(code, password, localPlayerInfo, onJoined, onError) {
     this.isHost = false;
     this.isOnline = true;
     const cleanCode = code.trim().toUpperCase().replace('CSP-', '');
@@ -108,18 +203,19 @@ class NetworkManager {
       return;
     }
 
-    this.peer.on('open', (id) => {
+    this.peer.on('open', () => {
       const conn = this.peer.connect(targetPeerId, { reliable: true });
       this.hostConn = conn;
 
       conn.on('open', () => {
-        // Send join request with player profile
+        // Send join request with profile & password
         conn.send({
           type: 'JOIN_REQUEST',
           player: {
             name: localPlayerInfo.name,
             color: localPlayerInfo.color
-          }
+          },
+          password: password || ''
         });
         if (onJoined) onJoined(this.roomCode);
       });
@@ -149,11 +245,23 @@ class NetworkManager {
   // ----------------------------------------------------
   handleHostReceivedData(conn, data) {
     if (data.type === 'JOIN_REQUEST') {
+      // 1. Check Private Password
+      if (this.roomInfo && this.roomInfo.isPrivate) {
+        if (!data.password || data.password !== this.roomInfo.password) {
+          conn.send({ type: 'JOIN_REJECT', reason: 'Sai mật khẩu phòng!' });
+          conn.close();
+          return;
+        }
+      }
+
+      // 2. Check Capacity
       if (this.lobbyPlayers.length >= 4) {
         conn.send({ type: 'JOIN_REJECT', reason: 'Phòng đã đủ 4 người chơi!' });
         conn.close();
         return;
       }
+
+      // Accept Guest
       const newPlayer = {
         id: this.lobbyPlayers.length,
         connId: conn.peer,
@@ -162,10 +270,11 @@ class NetworkManager {
         isHost: false
       };
       this.lobbyPlayers.push(newPlayer);
+      this.connections.push(conn);
+
       conn.send({ type: 'JOIN_SUCCESS', myId: newPlayer.id, roomCode: this.roomCode });
       this.broadcastLobbyState();
     } else if (data.type === 'CLIENT_INPUT') {
-      // Guest changed direction
       const p = this.game.players[data.playerId];
       if (p && p.isAlive) {
         if (data.dir && (data.dir.x !== -p.dir.x || data.dir.y !== -p.dir.y)) {
@@ -224,10 +333,10 @@ class NetworkManager {
   handleGuestReceivedData(data) {
     if (data.type === 'JOIN_SUCCESS') {
       this.myNetId = data.myId;
-      console.log('Joined room successfully as ID:', this.myNetId);
     } else if (data.type === 'JOIN_REJECT') {
       alert(data.reason || 'Không thể tham gia phòng!');
       this.disconnect();
+      if (this.game.onJoinFailed) this.game.onJoinFailed(data.reason);
     } else if (data.type === 'LOBBY_STATE') {
       this.lobbyPlayers = data.players;
       if (this.game.onLobbyUpdate) {
@@ -253,9 +362,11 @@ class NetworkManager {
   }
 
   disconnect() {
+    this.stopRoomHeartbeat();
     this.isOnline = false;
     this.isHost = false;
     this.roomCode = null;
+    this.roomInfo = null;
     this.connections.forEach(c => c.close());
     this.connections = [];
     if (this.hostConn) {

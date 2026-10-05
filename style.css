@@ -889,27 +889,126 @@ body {
 @keyframes popIn {
   0% { transform: scale(0.5); opacity: 0; }
   100% { transform: scale(1); opacity: 1; }
-/* ONLINE MULTIPLAYER STYLES */
-.mode-tabs {
-  margin-bottom: 16px;
 }
-.mode-panel.hidden {
+
+/* GLOBAL UTILITIES */
+.hidden {
   display: none !important;
 }
-.online-box {
-  background: rgba(0, 0, 0, 0.35);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 14px;
-  padding: 18px 20px;
-  margin-bottom: 20px;
-  text-align: center;
+.w-full {
+  width: 100% !important;
 }
-.online-desc {
+.mt-8 { margin-top: 8px; }
+.mt-10 { margin-top: 10px; }
+.mt-14 { margin-top: 14px; }
+.mt-20 { margin-top: 20px; }
+
+/* LOBBY VIEW ARCHITECTURE */
+.lobby-view {
+  animation: fadeIn 0.3s ease-out;
+}
+.view-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+  position: relative;
+}
+.view-header h2 {
+  font-family: var(--font-arcade);
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: 1px;
+}
+.btn-back {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #cbd5e1;
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.btn-back:hover {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+.view-desc {
   font-size: 0.88rem;
   color: #94a3b8;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
+  text-align: left;
   line-height: 1.45;
 }
+
+/* MAIN MENU 3 BUTTONS */
+.main-menu-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+  margin-bottom: 20px;
+}
+.btn-menu-large {
+  padding: 16px 20px;
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+}
+.lobby-footer-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+.btn-text {
+  background: transparent;
+  border: none;
+  color: var(--color-teal);
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: opacity 0.2s;
+}
+.btn-text:hover {
+  text-decoration: underline;
+  opacity: 0.9;
+}
+.lobby-footer-stats {
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+/* ROOM CREATION FORM */
+.input-hint {
+  font-size: 0.72rem;
+  color: #64748b;
+  margin-top: 4px;
+}
+.badge-privacy {
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(78, 205, 196, 0.15);
+  color: var(--color-teal);
+  border: 1px solid rgba(78, 205, 196, 0.3);
+}
+
+/* ROOM CODE DISPLAY */
 .room-code-display {
   background: rgba(78, 205, 196, 0.08);
   border: 2px dashed rgba(78, 205, 196, 0.4);
@@ -934,7 +1033,7 @@ body {
 }
 .room-code-text {
   font-family: var(--font-arcade);
-  font-size: 1.8rem;
+  font-size: 1.9rem;
   font-weight: 900;
   letter-spacing: 3px;
   color: #fff;
@@ -960,6 +1059,8 @@ body {
   font-size: 0.75rem;
   color: #64748b;
 }
+
+/* WAITING PLAYER LIST */
 .lobby-player-list {
   text-align: left;
   margin-bottom: 18px;
@@ -983,9 +1084,9 @@ body {
   justify-content: space-between;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  padding: 8px 12px;
-  border-radius: 8px;
-  font-size: 0.85rem;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 0.88rem;
   font-weight: 700;
 }
 .wp-info {
@@ -994,34 +1095,132 @@ body {
   gap: 10px;
 }
 .wp-color {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   border-radius: 4px;
 }
 .wp-tag {
-  font-size: 0.68rem;
-  padding: 2px 6px;
-  border-radius: 4px;
+  font-size: 0.7rem;
+  padding: 2px 8px;
+  border-radius: 6px;
   background: rgba(255, 230, 109, 0.2);
   color: var(--color-yellow);
 }
-.join-status-text {
-  font-size: 0.85rem;
-  margin-top: 10px;
-  color: var(--color-teal);
-  min-height: 20px;
-}
 .waiting-hint {
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   color: #94a3b8;
-  margin-top: 8px;
+  margin-top: 10px;
   text-align: center;
 }
-.w-full {
-  width: 100%;
+
+/* FIND ROOM VIEW */
+.find-section {
+  text-align: left;
+  margin-bottom: 16px;
 }
-.mt-10 { margin-top: 10px; }
-.mt-14 { margin-top: 14px; }
+.find-section label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #cbd5e1;
+  margin-bottom: 8px;
+}
+.section-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.divider-text {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  margin: 16px 0;
+  color: #64748b;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+}
+.divider-text::before, .divider-text::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.divider-text span {
+  padding: 0 10px;
+}
+.rooms-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 240px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.room-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 10px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.room-card:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--color-teal);
+  transform: translateY(-1px);
+}
+.rc-left {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.rc-name {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #fff;
+}
+.rc-meta {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.rc-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.rc-badge-pub {
+  font-size: 0.68rem;
+  color: var(--color-teal);
+  background: rgba(78, 205, 196, 0.15);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 700;
+}
+.rc-badge-priv {
+  font-size: 0.68rem;
+  color: var(--color-yellow);
+  background: rgba(255, 230, 109, 0.15);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 700;
+}
+.room-empty-state {
+  padding: 24px;
+  text-align: center;
+  font-size: 0.85rem;
+  color: #64748b;
+  border: 1px dashed rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+}
+
 
 /* RESPONSIVE DESIGN */
 @media (max-width: 900px) {

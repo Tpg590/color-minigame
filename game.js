@@ -137,54 +137,116 @@ class ColorSpillGame {
     });
   }
 
+  // ----------------------------------------------------
+  // MULTI-VIEW LOBBY CONTROLLER
+  // ----------------------------------------------------
+  switchView(targetViewId) {
+    document.querySelectorAll('.lobby-view').forEach(view => {
+      view.classList.add('hidden');
+    });
+    const target = document.getElementById(targetViewId);
+    if (target) target.classList.remove('hidden');
+  }
+
   initOnlineUI() {
-    // Game mode tabs switcher
-    document.querySelectorAll('#gameModeTabs .seg-btn').forEach(btn => {
+    this.createPrivacy = 'public';
+    this.pendingJoinCode = null;
+
+    // 1. Navigation from Main Menu 3 Buttons
+    document.getElementById('btnNavOffline').addEventListener('click', () => {
+      this.switchView('viewOffline');
+    });
+    document.getElementById('btnNavCreateRoom').addEventListener('click', () => {
+      document.getElementById('createRoomNameInput').value = `Phòng của ${this.playerName}`;
+      this.switchView('viewCreateRoom');
+    });
+    document.getElementById('btnNavFindRoom').addEventListener('click', () => {
+      this.switchView('viewFindRoom');
+      this.renderPublicRoomsList();
+    });
+
+    // Back Buttons (Quay lại)
+    document.querySelectorAll('.btn-back').forEach(btn => {
       btn.addEventListener('click', () => {
-        document.querySelectorAll('#gameModeTabs .seg-btn').forEach(b => b.classList.remove('active'));
+        this.switchView(btn.dataset.back || 'viewMain');
+      });
+    });
+
+    // 2. Chơi với máy: Start Offline Button
+    document.getElementById('btnStartOffline').addEventListener('click', () => {
+      window.sounds.init();
+      this.startOfflineMatch();
+    });
+
+    // 3. Tạo phòng: Privacy Toggle (Public / Private)
+    document.querySelectorAll('#roomPrivacyControl .seg-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('#roomPrivacyControl .seg-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        this.currentMode = btn.dataset.mode;
+        this.createPrivacy = btn.dataset.privacy;
 
-        document.getElementById('modePanelOffline').classList.add('hidden');
-        document.getElementById('modePanelHost').classList.add('hidden');
-        document.getElementById('modePanelJoin').classList.add('hidden');
-
-        if (this.currentMode === 'offline') {
-          document.getElementById('modePanelOffline').classList.remove('hidden');
-        } else if (this.currentMode === 'host') {
-          document.getElementById('modePanelHost').classList.remove('hidden');
-        } else if (this.currentMode === 'join') {
-          document.getElementById('modePanelJoin').classList.remove('hidden');
+        const passGroup = document.getElementById('roomPasswordGroup');
+        if (this.createPrivacy === 'private') {
+          passGroup.classList.remove('hidden');
+          document.getElementById('createRoomPasswordInput').focus();
+        } else {
+          passGroup.classList.add('hidden');
+          document.getElementById('createRoomPasswordInput').value = '';
         }
       });
     });
 
-    // Host room button
-    document.getElementById('btnCreateRoom').addEventListener('click', () => {
+    // 4. Confirm Create Room Button
+    document.getElementById('btnConfirmCreateRoom').addEventListener('click', () => {
       window.sounds.init();
-      const btn = document.getElementById('btnCreateRoom');
-      btn.textContent = '⏳ Đang tạo phòng...';
+      const roomName = document.getElementById('createRoomNameInput').value.trim() || `Phòng của ${this.playerName}`;
+      const password = document.getElementById('createRoomPasswordInput').value.trim();
+
+      // Enforce: Private rooms MUST have a password!
+      if (this.createPrivacy === 'private' && !password) {
+        alert('Phòng riêng tư bắt buộc phải đặt mật khẩu! Vui lòng nhập mật khẩu.');
+        document.getElementById('createRoomPasswordInput').focus();
+        return;
+      }
+
+      const btn = document.getElementById('btnConfirmCreateRoom');
+      btn.textContent = '⏳ Đang khởi tạo phòng...';
       btn.disabled = true;
 
       this.network.createRoom(
+        {
+          roomName: roomName,
+          isPrivate: this.createPrivacy === 'private',
+          password: password
+        },
         { name: this.playerName, color: this.selectedColor },
-        (roomCode) => {
-          document.getElementById('hostInitialState').classList.add('hidden');
-          document.getElementById('hostWaitingState').classList.remove('hidden');
-          document.getElementById('displayRoomCode').textContent = `CSP-${roomCode}`;
-          this.renderWaitingPlayerList('hostPlayerList', this.network.lobbyPlayers);
-          btn.textContent = '🌐 TẠO PHÒNG VÀ LẤY MÃ CODE';
+        (roomCode, roomInfo) => {
+          btn.textContent = '🚀 TẠO PHÒNG & LẤY MÃ CODE';
           btn.disabled = false;
+
+          document.getElementById('displayRoomCode').textContent = `CSP-${roomCode}`;
+          const pBadge = document.getElementById('hostPrivacyBadge');
+          if (roomInfo.isPrivate) {
+            pBadge.textContent = '🔒 Riêng Tư';
+            pBadge.className = 'badge-privacy text-yellow';
+          } else {
+            pBadge.textContent = '🌐 Công Khai';
+            pBadge.className = 'badge-privacy text-teal';
+          }
+
+          this.renderWaitingPlayerList('hostPlayerList', this.network.lobbyPlayers);
+          document.getElementById('hostPlayerCount').textContent = this.network.lobbyPlayers.length;
+          this.switchView('viewHostWaiting');
         },
         (err) => {
           alert('Không thể tạo phòng: ' + (err.message || 'Lỗi kết nối WebRTC'));
-          btn.textContent = '🌐 TẠO PHÒNG VÀ LẤY MÃ CODE';
+          btn.textContent = '🚀 TẠO PHÒNG & LẤY MÃ CODE';
           btn.disabled = false;
         }
       );
     });
 
-    // Copy room code
+    // Copy Room Code
     document.getElementById('btnCopyCode').addEventListener('click', () => {
       const code = document.getElementById('displayRoomCode').textContent;
       navigator.clipboard.writeText(code).then(() => {
@@ -194,58 +256,159 @@ class ColorSpillGame {
       });
     });
 
-    // Cancel host
+    // Cancel Host
     document.getElementById('btnCancelHost').addEventListener('click', () => {
       this.network.disconnect();
-      document.getElementById('hostWaitingState').classList.add('hidden');
-      document.getElementById('hostInitialState').classList.remove('hidden');
+      this.switchView('viewMain');
     });
 
-    // Host start match
+    // Host Start Match
     document.getElementById('btnHostStartMatch').addEventListener('click', () => {
       this.startOnlineMatchAsHost();
     });
 
-    // Join room button
-    document.getElementById('btnSubmitJoin').addEventListener('click', () => {
+    // 5. Tìm phòng - Cách 1: Direct Code Join
+    document.getElementById('btnJoinDirect').addEventListener('click', () => {
       window.sounds.init();
-      const codeInput = document.getElementById('joinRoomCodeInput').value.trim();
+      const codeInput = document.getElementById('joinDirectCodeInput').value.trim();
       if (!codeInput) {
         alert('Vui lòng nhập mã phòng (ví dụ: CSP-8492 hoặc 8492)!');
         return;
       }
-      const statusEl = document.getElementById('joinStatusText');
-      statusEl.textContent = '⏳ Đang kết nối tới Chủ phòng...';
-
-      this.network.joinRoom(
-        codeInput,
-        { name: this.playerName, color: this.selectedColor },
-        (roomCode) => {
-          statusEl.textContent = '✓ Đã kết nối thành công!';
-          document.getElementById('joinWaitingState').classList.remove('hidden');
-          document.getElementById('joinedRoomCodeTitle').textContent = `CSP-${roomCode}`;
-        },
-        (err) => {
-          statusEl.textContent = '❌ Không thể tìm thấy phòng! Hãy kiểm tra lại mã code.';
-        }
-      );
+      this.attemptJoinRoom(codeInput, '');
     });
 
-    // Leave join
-    document.getElementById('btnLeaveJoin').addEventListener('click', () => {
+    // 6. Tìm phòng - Cách 2: Refresh Rooms Button
+    document.getElementById('btnRefreshRooms').addEventListener('click', () => {
+      this.renderPublicRoomsList();
+    });
+
+    // MQTT Room updates callback
+    this.onRoomsUpdated = () => {
+      this.renderPublicRoomsList();
+    };
+
+    // 7. Password Modal Confirm / Cancel
+    document.getElementById('btnSubmitPassword').addEventListener('click', () => {
+      const pass = document.getElementById('inputRoomPassword').value.trim();
+      if (!pass) {
+        document.getElementById('passwordErrorText').textContent = 'Vui lòng nhập mật khẩu!';
+        return;
+      }
+      document.getElementById('passwordModal').classList.add('hidden');
+      if (this.pendingJoinCode) {
+        this.attemptJoinRoom(this.pendingJoinCode, pass);
+      }
+    });
+
+    document.getElementById('btnCancelPassword').addEventListener('click', () => {
+      document.getElementById('passwordModal').classList.add('hidden');
+      this.pendingJoinCode = null;
+    });
+
+    // 8. Guest Leave Room
+    document.getElementById('btnLeaveGuest').addEventListener('click', () => {
       this.network.disconnect();
-      document.getElementById('joinWaitingState').classList.add('hidden');
-      document.getElementById('joinStatusText').textContent = '';
+      this.switchView('viewMain');
     });
 
-    // Network lobby updates callback
+    // Network Lobby update callback
     this.onLobbyUpdate = (players) => {
       if (this.network.isHost) {
         this.renderWaitingPlayerList('hostPlayerList', players);
+        document.getElementById('hostPlayerCount').textContent = players.length;
       } else {
-        this.renderWaitingPlayerList('joinPlayerList', players);
+        this.renderWaitingPlayerList('guestPlayerList', players);
       }
     };
+  }
+
+  attemptJoinRoom(code, password) {
+    const statusEl = document.getElementById('directJoinStatus');
+    statusEl.textContent = '⏳ Đang kết nối tới phòng...';
+
+    this.network.joinRoom(
+      code,
+      password,
+      { name: this.playerName, color: this.selectedColor },
+      (roomCode) => {
+        statusEl.textContent = '✓ Kết nối thành công!';
+        document.getElementById('guestRoomCodeTitle').textContent = `CSP-${roomCode}`;
+        this.renderWaitingPlayerList('guestPlayerList', this.network.lobbyPlayers);
+        this.switchView('viewGuestWaiting');
+      },
+      (err) => {
+        statusEl.textContent = '❌ Không tìm thấy phòng hoặc phòng đã đóng!';
+      }
+    );
+
+    this.onJoinFailed = (reason) => {
+      if (reason && reason.includes('mật khẩu')) {
+        this.promptPasswordForRoom(code, 'Mật khẩu không chính xác, vui lòng thử lại:');
+      } else {
+        alert(reason || 'Không thể vào phòng!');
+      }
+    };
+  }
+
+  promptPasswordForRoom(code, customMsg) {
+    this.pendingJoinCode = code;
+    document.getElementById('inputRoomPassword').value = '';
+    document.getElementById('passwordErrorText').textContent = customMsg || '';
+    document.getElementById('passwordModal').classList.remove('hidden');
+    document.getElementById('inputRoomPassword').focus();
+  }
+
+  renderPublicRoomsList() {
+    const container = document.getElementById('publicRoomsContainer');
+    if (!container) return;
+
+    const rooms = this.network.getCleanRoomList();
+    container.innerHTML = '';
+
+    if (rooms.length === 0) {
+      container.innerHTML = `
+        <div class="room-empty-state">
+          <div>📡 Hiện chưa thấy phòng nào đang mở trên mạng.</div>
+          <div style="margin-top: 6px; font-size: 0.78rem; color: #64748b;">
+            Bạn có thể bấm <strong>"TẠO PHÒNG"</strong> hoặc nhập mã code phòng ở Cách 1!
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    rooms.forEach(r => {
+      const card = document.createElement('div');
+      card.className = 'room-card';
+      card.innerHTML = `
+        <div class="rc-left">
+          <div class="rc-name">${escapeHTML(r.name || 'Phòng Chiến Đấu')}</div>
+          <div class="rc-meta">
+            <span>Chủ: <strong>${escapeHTML(r.hostName)}</strong></span>
+            <span>•</span>
+            <span>Mã: <strong class="text-teal">CSP-${r.code}</strong></span>
+          </div>
+        </div>
+        <div class="rc-right">
+          <span class="${r.isPrivate ? 'rc-badge-priv' : 'rc-badge-pub'}">
+            ${r.isPrivate ? '🔒 Riêng tư' : '🌐 Công khai'}
+          </span>
+          <span style="font-size: 0.8rem; font-weight: 700; color: #cbd5e1;">${r.count}/${r.max}</span>
+        </div>
+      `;
+
+      card.addEventListener('click', () => {
+        window.sounds.init();
+        if (r.isPrivate) {
+          this.promptPasswordForRoom(r.code);
+        } else {
+          this.attemptJoinRoom(r.code, '');
+        }
+      });
+
+      container.appendChild(card);
+    });
   }
 
   renderWaitingPlayerList(elementId, players) {
@@ -267,14 +430,6 @@ class ColorSpillGame {
   }
 
   bindEvents() {
-    // Start Offline Game
-    document.getElementById('btnStartGame').addEventListener('click', () => {
-      window.sounds.init();
-      const inputVal = document.getElementById('playerNameInput').value.trim();
-      this.playerName = inputVal || 'ChromaKnight';
-      this.startOfflineMatch();
-    });
-
     // Tutorial Modals
     const openTut = () => document.getElementById('tutorialModal').classList.remove('hidden');
     const closeTut = () => document.getElementById('tutorialModal').classList.add('hidden');
@@ -434,6 +589,7 @@ class ColorSpillGame {
     document.getElementById('setupScreen').classList.remove('hidden');
     document.getElementById('gameScreen').classList.add('hidden');
     document.getElementById('gameHud').classList.add('hidden');
+    this.switchView('viewMain');
     this.updateBestScoreDisplay();
   }
 
