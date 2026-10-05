@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Color Spill: Mini Game - Cuộc Chiến Sắc Màu</title>
+  <meta name="description" content="Mini game mở rộng lãnh thổ màu sắc offline đấu với Bot thông minh. Chọn màu, đặt tên, bao vây chiếm đất và leo top!" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&family=Orbitron:wght@600;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- Ambient background glow elements -->
+  <div class="bg-glow bg-glow-1"></div>
+  <div class="bg-glow bg-glow-2"></div>
+  <div class="grid-overlay"></div>
+
+  <!-- MAIN APP CONTAINER -->
+  <div class="app-container">
+
+    <!-- TOP HEADER / IN-GAME HUD -->
+    <header class="game-header">
+      <div class="brand">
+        <span class="brand-badge">MINI</span>
+        <span class="brand-title">COLOR<span class="text-coral">SPILL</span></span>
+      </div>
+
+      <!-- IN-GAME HUD (Hidden when on setup screen) -->
+      <div id="gameHud" class="hud-container hidden">
+        <!-- Live Territory Ownership Bar -->
+        <div class="territory-bar-wrapper">
+          <div class="territory-label">
+            <span>BẢN ĐỒ CHIẾM ĐÓNG</span>
+            <span id="playerTerritoryPct" class="hud-pct">0.0%</span>
+          </div>
+          <div class="territory-bar" id="territoryBar">
+            <!-- Dynamic segments generated via JS -->
+          </div>
+        </div>
+
+        <div class="hud-stats">
+          <div class="stat-pill">
+            <span class="stat-icon">⭐</span>
+            <span class="stat-val" id="hudScore">0</span>
+          </div>
+          <div class="stat-pill">
+            <span class="stat-icon">💀</span>
+            <span class="stat-val" id="hudKills">0</span>
+          </div>
+          <div class="stat-pill timer-pill">
+            <span class="stat-icon">⏱️</span>
+            <span class="stat-val" id="hudTimer">00:00</span>
+          </div>
+        </div>
+
+        <div class="hud-actions">
+          <button id="btnSoundToggle" class="btn-icon" title="Bật/Tắt âm thanh">🔊</button>
+          <button id="btnInGameTutorial" class="btn-icon" title="Xem hướng dẫn">❓</button>
+          <button id="btnPause" class="btn-icon" title="Tạm dừng">⏸️</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- MAIN VIEW AREA -->
+    <main class="main-content">
+
+      <!-- SCREEN 1: LOBBY / SETUP SCREEN -->
+      <section id="setupScreen" class="screen setup-screen">
+        <div class="lobby-card glassmorphism">
+          <div class="lobby-badge">⚔️ OFFLINE BOT ARENA</div>
+          <h1 class="hero-title">ĐẤU TRƯỜNG <span class="gradient-text">SẮC MÀU</span></h1>
+          <p class="hero-subtitle">Hoá thân thành khối màu ma thuật, bao vây chiếm đóng lãnh thổ & tiêu diệt các Bot đối thủ!</p>
+
+          <!-- PLAYER NAME INPUT -->
+          <div class="form-group">
+            <label for="playerNameInput">TÊN ĐẤU SĨ CỦA BẠN:</label>
+            <div class="input-with-action">
+              <input type="text" id="playerNameInput" maxlength="14" placeholder="Nhập tên của bạn..." value="ChromaKnight" autocomplete="off" />
+              <button id="btnRandomName" type="button" class="btn-secondary btn-dice" title="Tạo tên ngẫu nhiên">🎲</button>
+            </div>
+          </div>
+
+          <!-- COLOR PICKER -->
+          <div class="form-group">
+            <label>CHỌN MÀU CHIẾN ĐỘI CỦA BẠN:</label>
+            <div class="color-palette" id="colorPalette">
+              <!-- Rendered via JS: Coral, Teal, Yellow, Violet, Lime, Pink, Cyan, Orange -->
+            </div>
+          </div>
+
+          <!-- CHARACTER PREVIEW CARD -->
+          <div class="player-preview-card" id="playerPreviewCard">
+            <div class="preview-avatar-wrapper">
+              <div class="preview-avatar" id="previewAvatar">
+                <span class="preview-crown">👑</span>
+                <div class="preview-eyes">
+                  <span class="eye"></span>
+                  <span class="eye"></span>
+                </div>
+              </div>
+            </div>
+            <div class="preview-info">
+              <div class="preview-tag">NHÂN VẬT CỦA BẠN TRONG TRẬN</div>
+              <div class="preview-name" id="previewPlayerName">ChromaKnight <span class="badge-you">(BẠN)</span></div>
+              <div class="preview-hint">✨ Vào trận sẽ có <strong>Vương Miện 👑 + Vòng Sáng Radar</strong> định vị ngay!</div>
+            </div>
+          </div>
+
+          <!-- GAME MODE SELECTOR TABS -->
+          <div class="form-group">
+            <label>CHẾ ĐỘ CHƠI:</label>
+            <div class="segmented-control mode-tabs" id="gameModeTabs">
+              <button type="button" class="seg-btn active" data-mode="offline">🤖 Offline vs Bot</button>
+              <button type="button" class="seg-btn" data-mode="host">👑 Tạo Phòng Online</button>
+              <button type="button" class="seg-btn" data-mode="join">🔑 Vào Bằng Mã Code</button>
+            </div>
+          </div>
+
+          <!-- PANEL 1: OFFLINE MODE -->
+          <div id="modePanelOffline" class="mode-panel">
+            <div class="form-group">
+              <label>MỨC ĐỘ THỬ THÁCH (BOT AI):</label>
+              <div class="segmented-control" id="difficultyControl">
+                <button type="button" class="seg-btn" data-diff="easy">Tập Sự</button>
+                <button type="button" class="seg-btn active" data-diff="normal">Chiến Binh</button>
+                <button type="button" class="seg-btn" data-diff="hard">Bá Chủ 🔥</button>
+              </div>
+            </div>
+
+            <div class="lobby-actions">
+              <button id="btnStartGame" class="btn-primary btn-pulse">
+                <span class="btn-icon-lead">⚡</span> VÀO TRẬN CHIẾN NGAY
+              </button>
+              <button id="btnOpenTutorial" class="btn-secondary">
+                <span class="btn-icon-lead">📖</span> HƯỚNG DẪN LUẬT CHƠI
+              </button>
+            </div>
+          </div>
+
+          <!-- PANEL 2: HOST ROOM ONLINE -->
+          <div id="modePanelHost" class="mode-panel hidden">
+            <div class="online-box">
+              <div id="hostInitialState">
+                <p class="online-desc">Tạo phòng và nhận mã code để gửi cho bạn bè cùng vào so tài!</p>
+                <button id="btnCreateRoom" type="button" class="btn-primary btn-pulse w-full">
+                  <span class="btn-icon-lead">🌐</span> TẠO PHÒNG VÀ LẤY MÃ CODE
+                </button>
+              </div>
+
+              <div id="hostWaitingState" class="hidden">
+                <div class="room-code-display">
+                  <span class="code-label">MÃ PHÒNG CỦA BẠN:</span>
+                  <div class="code-row">
+                    <span id="displayRoomCode" class="room-code-text">CSP-XXXX</span>
+                    <button id="btnCopyCode" type="button" class="btn-icon-pill" title="Sao chép mã">📋 Sao chép</button>
+                  </div>
+                  <span class="code-sub">Chia sẻ mã này để bạn bè nhập vào mục "Vào Bằng Mã Code"!</span>
+                </div>
+
+                <div class="lobby-player-list">
+                  <div class="list-title">DANH SÁCH ĐẤU THỦ TRONG PHÒNG:</div>
+                  <ul id="hostPlayerList" class="waiting-list">
+                    <!-- Populated dynamically via JS -->
+                  </ul>
+                </div>
+
+                <div class="lobby-actions">
+                  <button id="btnHostStartMatch" type="button" class="btn-primary btn-pulse">
+                    <span class="btn-icon-lead">🚀</span> BẮT ĐẦU TRẬN ĐẤU (HOST)
+                  </button>
+                  <button id="btnCancelHost" type="button" class="btn-secondary">
+                    Hủy Phòng
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- PANEL 3: JOIN ROOM ONLINE -->
+          <div id="modePanelJoin" class="mode-panel hidden">
+            <div class="online-box">
+              <p class="online-desc">Nhập mã code từ chủ phòng (ví dụ: <strong class="text-teal">CSP-8492</strong> hoặc <strong class="text-teal">8492</strong>):</p>
+              <div class="input-with-action">
+                <input type="text" id="joinRoomCodeInput" placeholder="Nhập mã code phòng..." maxlength="10" autocomplete="off" />
+                <button id="btnSubmitJoin" type="button" class="btn-primary">
+                  VÀO PHÒNG
+                </button>
+              </div>
+              <div id="joinStatusText" class="join-status-text"></div>
+
+              <div id="joinWaitingState" class="hidden mt-14">
+                <div class="lobby-player-list">
+                  <div class="list-title">ĐANG Ở TRONG PHÒNG <span id="joinedRoomCodeTitle" class="text-yellow"></span>:</div>
+                  <ul id="joinPlayerList" class="waiting-list">
+                    <!-- Populated dynamically via JS -->
+                  </ul>
+                  <div class="waiting-hint">⏳ Đang chờ Chủ phòng (Host) bấm nút bắt đầu...</div>
+                </div>
+                <button id="btnLeaveJoin" type="button" class="btn-secondary mt-10">Rời Phòng</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="lobby-footer">
+            <span>Kỷ lục cao nhất: <strong id="bestScoreText" class="text-yellow">0</strong> pts</span>
+            <span>•</span>
+            <span>Mục tiêu thắng: <strong class="text-teal">Chiếm &ge; 40%</strong> bản đồ</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- SCREEN 2: BATTLE CANVAS SCREEN -->
+      <section id="gameScreen" class="screen game-screen hidden">
+        <div class="arena-wrapper">
+          <div class="canvas-container" id="canvasContainer">
+            <canvas id="gameCanvas" width="700" height="700"></canvas>
+            
+            <!-- Active Powerup Badges overlay -->
+            <div id="activePowerups" class="active-powerups-overlay"></div>
+          </div>
+
+          <!-- SIDE LEADERBOARD -->
+          <aside class="live-leaderboard glassmorphism" id="liveLeaderboard">
+            <div class="lb-header">
+              <span class="lb-icon">🏆</span>
+              <span>BẢNG XẾP HẠNG</span>
+            </div>
+            <ul class="lb-list" id="lbList">
+              <!-- Dynamically populated -->
+            </ul>
+
+            <div class="powerup-legend">
+              <div class="legend-title">⚡ VẬT PHẨM TRÊN SÂN</div>
+              <div class="legend-grid">
+                <div class="legend-item"><span class="legend-ico">⚡</span> Tốc độ</div>
+                <div class="legend-item"><span class="legend-ico">💣</span> Bom sơn</div>
+                <div class="legend-item"><span class="legend-ico">🛡️</span> Khiên đuôi</div>
+                <div class="legend-item"><span class="legend-ico">❄️</span> Đóng băng</div>
+              </div>
+            </div>
+          </aside>
+        </div>
+
+        <!-- ON-SCREEN MOBILE CONTROLS -->
+        <div class="mobile-controls" id="mobileControls">
+          <div class="dpad">
+            <button class="dpad-btn dpad-up" data-dir="up">▲</button>
+            <button class="dpad-btn dpad-left" data-dir="left">◀</button>
+            <button class="dpad-btn dpad-right" data-dir="right">▶</button>
+            <button class="dpad-btn dpad-down" data-dir="down">▼</button>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- MODAL 1: TUTORIAL MODAL -->
+    <div id="tutorialModal" class="modal-backdrop hidden">
+      <div class="modal-card glassmorphism tutorial-modal">
+        <div class="modal-header">
+          <h2>📖 HƯỚNG DẪN CHIẾN THUẬT</h2>
+          <button class="modal-close" id="btnCloseTutorial">&times;</button>
+        </div>
+        <div class="modal-body tutorial-steps">
+          
+          <div class="step-card">
+            <div class="step-badge">1</div>
+            <div class="step-content">
+              <h3>🎨 Xuất phát & Mở rộng lãnh thổ</h3>
+              <p>Dùng <strong>Phím Mũi Tên</strong> hoặc <strong>W-A-S-D</strong> (hoặc cụm phím ảo trên điện thoại) để di chuyển. Rời khỏi căn cứ của mình sẽ để lại một <em>đường viền vệt màu</em>.</p>
+            </div>
+          </div>
+
+          <div class="step-card">
+            <div class="step-badge">2</div>
+            <div class="step-content">
+              <h3>🔄 Khép vòng chiếm đất</h3>
+              <p>Lái khối màu quay trở lại bất kỳ phần lãnh thổ nào của bạn. <strong>Toàn bộ diện tích bên trong vòng lặp sẽ lập tức biến thành màu của bạn!</strong></p>
+            </div>
+          </div>
+
+          <div class="step-card highlight-step">
+            <div class="step-badge">3</div>
+            <div class="step-content">
+              <h3>⚔️ Săn đuôi & Triệt hạ Bot</h3>
+              <p>Khi các Bot đang ở ngoài vẽ vệt màu, hãy lái xe <strong>đâm cắt ngang vệt màu của Bot</strong> để tiêu diệt nó ngay lập tức! Bạn nhận thêm <strong>+300 điểm</strong>!</p>
+            </div>
+          </div>
+
+          <div class="step-card danger-step">
+            <div class="step-badge">4</div>
+            <div class="step-content">
+              <h3>⚠️ Cảnh giác tử thần</h3>
+              <p>Đừng để Bot đâm vào vệt màu của bạn khi chưa kịp về nhà! Và tuyệt đối không tự đâm vào đuôi của chính mình!</p>
+            </div>
+          </div>
+
+          <div class="step-card">
+            <div class="step-badge">5</div>
+            <div class="step-content">
+              <h3>🎁 Nhặt siêu vật phẩm</h3>
+              <p>
+                <strong>⚡ Tốc độ</strong>: Tăng tốc lướt nhanh | 
+                <strong>💣 Bom Màu</strong>: Bùng nổ nhuộm ngay 1 vùng đất | 
+                <strong>🛡️ Khiên</strong>: Bảo vệ đuôi khỏi 1 cú cắt | 
+                <strong>❄️ Đóng Băng</strong>: Khiến toàn bộ Bot hóa đá 4 giây!
+              </p>
+            </div>
+          </div>
+
+        </div>
+        <div class="modal-footer">
+          <button class="btn-primary" id="btnGotTutorial">ĐÃ HIỂU, CHIẾN THÔI!</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL 2: PAUSE MODAL -->
+    <div id="pauseModal" class="modal-backdrop hidden">
+      <div class="modal-card glassmorphism text-center">
+        <h2>⏸️ TẠM DỪNG TRẬN ĐẤU</h2>
+        <p>Hít một hơi thật sâu rồi tiếp tục chinh phục bản đồ!</p>
+        <div class="modal-actions-col">
+          <button class="btn-primary" id="btnResume">TIẾP TỤC CHƠI</button>
+          <button class="btn-secondary" id="btnRestartFromPause">CHƠI LẠI TRẬN NÀY</button>
+          <button class="btn-secondary" id="btnExitToLobby">VỀ SẢNH CHỜ</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL 3: GAME OVER / VICTORY MODAL -->
+    <div id="gameOverModal" class="modal-backdrop hidden">
+      <div class="modal-card glassmorphism gameover-card text-center">
+        <div id="goBadge" class="go-badge">KẾT THÚC TRẬN ĐẤU</div>
+        <h2 id="goTitle" class="go-title">CHIẾN THẮNG BÁ CHỦ!</h2>
+        <p id="goSubtitle" class="go-subtitle">Bạn đã làm chủ phần lớn lãnh thổ trên bàn cờ!</p>
+
+        <div class="go-stats-grid">
+          <div class="go-stat-box">
+            <div class="go-stat-label">Lãnh thổ kiểm soát</div>
+            <div class="go-stat-val text-teal" id="goTerritory">0.0%</div>
+          </div>
+          <div class="go-stat-box">
+            <div class="go-stat-label">Điểm số đạt được</div>
+            <div class="go-stat-val text-yellow" id="goScore">0</div>
+          </div>
+          <div class="go-stat-box">
+            <div class="go-stat-label">Bot đã hạ gục</div>
+            <div class="go-stat-val text-coral" id="goKills">0</div>
+          </div>
+          <div class="go-stat-box">
+            <div class="go-stat-label">Thời gian sống</div>
+            <div class="go-stat-val text-violet" id="goTime">00:00</div>
+          </div>
+        </div>
+
+        <div class="modal-actions-col">
+          <button class="btn-primary btn-pulse" id="btnPlayAgain">
+            <span class="btn-icon-lead">🔄</span> CHƠI LẠI NGAY
+          </button>
+          <button class="btn-secondary" id="btnChangeSettings">
+            <span class="btn-icon-lead">⚙️</span> ĐỔI MÀU & TÊN MỚI
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- WebRTC PeerJS for Serverless P2P Online Multiplayer -->
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+  <!-- Audio Synthesizer -->
+  <script src="audio.js"></script>
+  <!-- Network Manager -->
+  <script src="network.js"></script>
+  <!-- Core Game Engine -->
+  <script src="game.js"></script>
+</body>
+</html>
