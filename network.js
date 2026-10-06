@@ -1,6 +1,6 @@
 // ========================================================
 // COLOR SPILL - NETWORK MANAGER (P2P WebRTC + MQTT Room Discovery)
-// Serverless: 100% runs on static Vercel with zero backend costs!
+// Turn-based multiplayer with authoritative Host & automatic Bot failover
 // ========================================================
 
 class NetworkManager {
@@ -14,7 +14,8 @@ class NetworkManager {
     this.connections = []; // For Host: list of guest data connections
     this.hostConn = null;  // For Guest: connection to host
     this.lobbyPlayers = [];
-    this.peerPrefix = 'csp-v1-';
+    this.peerPrefix = 'csp-tb-';
+    this.myNetId = 0;
 
     // MQTT Discovery Client
     this.mqttClient = null;
@@ -40,7 +41,6 @@ class NetworkManager {
     if (typeof mqtt === 'undefined') return;
 
     try {
-      // Connect to free public WebSockets MQTT broker
       this.mqttClient = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
         clientId: 'csp_' + Math.random().toString(16).substr(2, 8),
         keepalive: 30,
@@ -73,7 +73,6 @@ class NetworkManager {
     const list = [];
     for (const code in this.discoveredRooms) {
       const r = this.discoveredRooms[code];
-      // Prune rooms silent for more than 7 seconds
       if (now - r.lastSeen < 7000) {
         list.push(r);
       } else {
@@ -108,7 +107,6 @@ class NetworkManager {
   stopRoomHeartbeat() {
     clearInterval(this.heartbeatInterval);
     if (this.mqttClient && this.mqttClient.connected && this.roomCode) {
-      // Clear topic
       this.mqttClient.publish(`colorspill/arena/rooms/${this.roomCode}`, '', { qos: 0 });
     }
   }
@@ -119,6 +117,7 @@ class NetworkManager {
   createRoom(config, localPlayerInfo, onReady, onError) {
     this.isHost = true;
     this.isOnline = true;
+    this.myNetId = 1; // Host is Player 1
     this.connections = [];
     this.roomCode = this.generateRoomCode();
     const peerId = this.peerPrefix + this.roomCode.toLowerCase();
@@ -150,7 +149,7 @@ class NetworkManager {
 
     this.peer.on('open', () => {
       this.lobbyPlayers = [
-        { id: 0, name: localPlayerInfo.name, color: localPlayerInfo.color, isHost: true }
+        { id: 1, name: localPlayerInfo.name, color: localPlayerInfo.color, isHost: true }
       ];
       this.startRoomHeartbeat();
       if (onReady) onReady(this.roomCode, this.roomInfo);
@@ -163,9 +162,14 @@ class NetworkManager {
         });
 
         conn.on('close', () => {
+          const disconnectedPlayer = this.lobbyPlayers.find(p => p.connId === conn.peer);
           this.connections = this.connections.filter(c => c !== conn);
           this.lobbyPlayers = this.lobbyPlayers.filter(p => p.connId !== conn.peer);
           this.broadcastLobbyState();
+
+          if (disconnectedPlayer && this.game.onPlayerDisconnectedInMatch) {
+            this.game.onPlayerDisconnectedInMatch(disconnectedPlayer.id);
+          }
         });
       });
     });
@@ -208,7 +212,6 @@ class NetworkManager {
       this.hostConn = conn;
 
       conn.on('open', () => {
-        // Send join request with profile & password
         conn.send({
           type: 'JOIN_REQUEST',
           player: {
@@ -245,41 +248,48 @@ class NetworkManager {
   // ----------------------------------------------------
   handleHostReceivedData(conn, data) {
     if (data.type === 'JOIN_REQUEST') {
-      // 1. Check Private Password
       if (this.roomInfo && this.roomInfo.isPrivate) {
         if (!data.password || data.password !== this.roomInfo.password) {
           conn.send({ type: 'JOIN_REJECT', reason: 'Sai mật khẩu phòng!' });
-          conn.close();
+          setTimeout(() => conn.close(), 500);
           return;
         }
       }
 
-      // 2. Check Capacity
       if (this.lobbyPlayers.length >= 4) {
         conn.send({ type: 'JOIN_REJECT', reason: 'Phòng đã đủ 4 người chơi!' });
-        conn.close();
+        setTimeout(() => conn.close(), 500);
         return;
       }
 
-      // Accept Guest
-      const newPlayer = {
-        id: this.lobbyPlayers.length,
-        connId: conn.peer,
-        name: data.player.name || `Người chơi ${this.lobbyPlayers.length + 1}`,
-        color: data.player.color,
-        isHost: false
-      };
-      this.lobbyPlayers.push(newPlayer);
-      this.connections.push(conn);
+      if (this.game.isMatchActive) {
+        conn.send({ type: 'JOIN_REJECT', reason: 'Trận đấu đang diễn ra!' });
+        setTimeout(() => conn.close(), 500);
+        return;
+      }
 
-      conn.send({ type: 'JOIN_SUCCESS', myId: newPlayer.id, roomCode: this.roomCode });
+      const assignedId = this.lobbyPlayers.length + 1; // 2, 3, 4
+      this.connections.push(conn);
+      this.lobbyPlayers.push({
+        id: assignedId,
+        name: data.player.name || `Người chơi ${assignedId}`,
+        color: data.player.color,
+        connId: conn.peer,
+        isHost: false
+      });
+
+      conn.send({
+        type: 'JOIN_SUCCESS',
+        myId: assignedId,
+        roomCode: this.roomCode
+      });
+
       this.broadcastLobbyState();
-    } else if (data.type === 'CLIENT_INPUT') {
-      const p = this.game.players[data.playerId];
-      if (p && p.isAlive) {
-        if (data.dir && (data.dir.x !== -p.dir.x || data.dir.y !== -p.dir.y)) {
-          p.nextDir = { ...data.dir };
-        }
+    }
+    else if (data.type === 'CLIENT_ACTION') {
+      // Guest sends an in-match turn action to Host
+      if (this.game.handleClientTurnAction) {
+        this.game.handleClientTurnAction(data.playerId, data.action);
       }
     }
   }
@@ -347,16 +357,16 @@ class NetworkManager {
     } else if (data.type === 'HOST_SNAPSHOT') {
       this.game.applyHostSnapshot(data.snapshot);
     } else if (data.type === 'GAME_OVER') {
-      this.game.finishMatch(data.result.isVictory, data.result.subtitle);
+      this.game.finishMatch(data.result.winnerId, data.result.subtitle);
     }
   }
 
-  sendInputToHost(dir) {
+  sendActionToHost(action) {
     if (this.hostConn && this.hostConn.open) {
       this.hostConn.send({
-        type: 'CLIENT_INPUT',
+        type: 'CLIENT_ACTION',
         playerId: this.myNetId,
-        dir: dir
+        action: action
       });
     }
   }

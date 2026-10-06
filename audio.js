@@ -1,8 +1,35 @@
-// Web Audio API Sound Synthesizer for Retro Arcade Effects
+// ========================================================
+// COLOR SPILL - AUDIO MANAGER (SFX + BGM)
+// Uses genuine audio assets from Color_Spill with synthetic fallback
+// ========================================================
+
 class SoundManager {
   constructor() {
     this.ctx = null;
-    this.enabled = true;
+    this.soundEnabled = true;
+    this.musicEnabled = true;
+    this.audioPool = {};
+    this.bgmAudio = null;
+    this.currentBgmTrack = null;
+
+    this.sfxPaths = {
+      click: 'assets/sfx/ClickButton.mp3',
+      cardPlay: 'assets/sfx/CardPlay.mp3',
+      drawCard: 'assets/sfx/DrawCard.mp3',
+      shuffle: 'assets/sfx/Xaobai.mp3',
+      tick: 'assets/sfx/Tick.mp3',
+      countdown: 'assets/sfx/321.mp3',
+      capture: 'assets/sfx/auraframing.mp3',
+      win: 'assets/sfx/YouWin.mp3',
+      lose: 'assets/sfx/Lose.mp3',
+      tap: 'assets/sfx/virtual_vibes-pop-tap-click-fx-383733.mp3'
+    };
+
+    this.bgmPaths = {
+      lobby: 'assets/music/Lobby1.mp3',
+      match: 'assets/music/Music.mp3',
+      waiting: 'assets/music/WaitingRoom.mp3'
+    };
   }
 
   init() {
@@ -17,119 +44,117 @@ class SoundManager {
     }
   }
 
-  toggle() {
-    this.enabled = !this.enabled;
-    return this.enabled;
+  toggleSound() {
+    this.soundEnabled = !this.soundEnabled;
+    return this.soundEnabled;
   }
 
-  playTurn() {
-    if (!this.enabled || !this.ctx) return;
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
-    osc.type = 'triangle';
-    osc.frequency.setValueAtTime(260, this.ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(320, this.ctx.currentTime + 0.05);
-    gain.gain.setValueAtTime(0.04, this.ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.05);
-    osc.connect(gain);
-    gain.connect(this.ctx.destination);
-    osc.start();
-    osc.stop(this.ctx.currentTime + 0.05);
+  toggleMusic() {
+    this.musicEnabled = !this.musicEnabled;
+    if (!this.musicEnabled && this.bgmAudio) {
+      this.bgmAudio.pause();
+    } else if (this.musicEnabled && this.bgmAudio) {
+      this.bgmAudio.play().catch(() => {});
+    }
+    return this.musicEnabled;
   }
 
-  playCapture(areaCount = 5) {
-    if (!this.enabled || !this.ctx) return;
-    const now = this.ctx.currentTime;
-    const baseFreq = Math.min(600, 240 + areaCount * 8);
+  playFileSfx(key, volume = 0.7) {
+    if (!this.soundEnabled) return;
+    this.init();
+    const path = this.sfxPaths[key];
+    if (!path) return;
 
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(baseFreq, now);
-    osc.frequency.exponentialRampToValueAtTime(baseFreq * 1.5, now + 0.18);
-    osc.frequency.exponentialRampToValueAtTime(baseFreq * 2.0, now + 0.3);
-
-    gain.gain.setValueAtTime(0.12, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
-
-    osc.connect(gain);
-    gain.connect(this.ctx.destination);
-    osc.start();
-    osc.stop(now + 0.35);
+    try {
+      const audio = new Audio(path);
+      audio.volume = volume;
+      audio.play().catch(() => {
+        // Fallback to web audio synth if file playback blocked
+        this.synthFallback(key);
+      });
+    } catch (e) {
+      this.synthFallback(key);
+    }
   }
 
-  playKill() {
-    if (!this.enabled || !this.ctx) return;
-    const now = this.ctx.currentTime;
-    
-    // Low explosion rumble + high zap
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
-    osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(380, now);
-    osc.frequency.exponentialRampToValueAtTime(80, now + 0.3);
+  playBgm(trackKey = 'match', volume = 0.35) {
+    if (this.currentBgmTrack === trackKey && this.bgmAudio && !this.bgmAudio.paused) return;
+    this.stopBgm();
 
-    gain.gain.setValueAtTime(0.2, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+    const path = this.bgmPaths[trackKey];
+    if (!path) return;
 
-    osc.connect(gain);
-    gain.connect(this.ctx.destination);
-    osc.start();
-    osc.stop(now + 0.3);
+    try {
+      this.bgmAudio = new Audio(path);
+      this.bgmAudio.loop = true;
+      this.bgmAudio.volume = volume;
+      this.currentBgmTrack = trackKey;
+      if (this.musicEnabled) {
+        this.bgmAudio.play().catch(e => {
+          // Autoplay policy: will start on first user interaction
+        });
+      }
+    } catch (e) {}
   }
 
-  playPowerup() {
-    if (!this.enabled || !this.ctx) return;
-    const now = this.ctx.currentTime;
-    [440, 554, 659, 880].forEach((freq, i) => {
+  stopBgm() {
+    if (this.bgmAudio) {
+      this.bgmAudio.pause();
+      this.bgmAudio.currentTime = 0;
+      this.bgmAudio = null;
+    }
+    this.currentBgmTrack = null;
+  }
+
+  // Synthesizer fallback if assets fail or offline
+  synthFallback(type) {
+    if (!this.soundEnabled || !this.ctx) return;
+    try {
+      const now = this.ctx.currentTime;
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(freq, now + i * 0.06);
-      gain.gain.setValueAtTime(0.08, now + i * 0.06);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.06 + 0.15);
-      osc.connect(gain);
-      gain.connect(this.ctx.destination);
-      osc.start(now + i * 0.06);
-      osc.stop(now + i * 0.06 + 0.15);
-    });
+
+      if (type === 'click' || type === 'tap') {
+        osc.frequency.setValueAtTime(400, now);
+        osc.frequency.exponentialRampToValueAtTime(150, now + 0.05);
+        gain.gain.setValueAtTime(0.08, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.05);
+      } else if (type === 'capture') {
+        osc.frequency.setValueAtTime(280, now);
+        osc.frequency.exponentialRampToValueAtTime(560, now + 0.25);
+        gain.gain.setValueAtTime(0.15, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.3);
+      } else if (type === 'cardPlay') {
+        osc.frequency.setValueAtTime(520, now);
+        osc.frequency.exponentialRampToValueAtTime(880, now + 0.15);
+        gain.gain.setValueAtTime(0.12, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.2);
+      }
+    } catch (e) {}
   }
 
-  playDeath() {
-    if (!this.enabled || !this.ctx) return;
-    const now = this.ctx.currentTime;
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
-    osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(220, now);
-    osc.frequency.exponentialRampToValueAtTime(45, now + 0.45);
-
-    gain.gain.setValueAtTime(0.25, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
-
-    osc.connect(gain);
-    gain.connect(this.ctx.destination);
-    osc.start();
-    osc.stop(now + 0.45);
-  }
-
-  playWin() {
-    if (!this.enabled || !this.ctx) return;
-    const now = this.ctx.currentTime;
-    const notes = [330, 392, 493, 587, 659, 784];
-    notes.forEach((freq, idx) => {
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(freq, now + idx * 0.1);
-      gain.gain.setValueAtTime(0.12, now + idx * 0.1);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.1 + 0.25);
-      osc.connect(gain);
-      gain.connect(this.ctx.destination);
-      osc.start(now + idx * 0.1);
-      osc.stop(now + idx * 0.1 + 0.25);
-    });
-  }
+  // Common SFX Shortcuts
+  playClick() { this.playFileSfx('click', 0.5); }
+  playCard() { this.playFileSfx('cardPlay', 0.8); }
+  playDraw() { this.playFileSfx('drawCard', 0.7); }
+  playShuffle() { this.playFileSfx('shuffle', 0.8); }
+  playTick() { this.playFileSfx('tick', 0.4); }
+  playCountdown() { this.playFileSfx('countdown', 0.8); }
+  playCapture() { this.playFileSfx('capture', 0.85); }
+  playWin() { this.playFileSfx('win', 0.9); }
+  playLose() { this.playFileSfx('lose', 0.8); }
 }
 
-window.sounds = new SoundManager();
+window.sound = new SoundManager();

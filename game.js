@@ -1,2178 +1,2616 @@
 // ========================================================
-// COLOR SPILL - CORE GAME ENGINE (EXPANDED WORLD & CAMERA)
-// Supports Offline vs Bots + P2P Online Room Codes
+// COLOR SPILL - THE BOARD GAME & CARD EVENT ENGINE
+// Turn-based territory enclosure (FloodFill Capture) + 22 Cards System
+// Drag & Drop Card Execution, Dedicated Trash Bin, 30s Turn Timer
+// Compatible with Single Player (Bot AI) & Online Multiplayer (P2P WebRTC)
 // ========================================================
 
-const COLOR_PALETTE = [
-  { name: 'San Hô', hex: '#FF6B6B', glow: 'rgba(255, 107, 107, 0.6)' },
-  { name: 'Xanh Cyber', hex: '#4ECDC4', glow: 'rgba(78, 205, 196, 0.6)' },
-  { name: 'Vàng Điện', hex: '#FFE66D', glow: 'rgba(255, 230, 109, 0.6)' },
-  { name: 'Tím Neon', hex: '#A29BFE', glow: 'rgba(162, 155, 254, 0.6)' },
-  { name: 'Xanh Lá', hex: '#2ECC71', glow: 'rgba(46, 204, 113, 0.6)' },
-  { name: 'Hồng Phấn', hex: '#FF7675', glow: 'rgba(255, 118, 117, 0.6)' },
-  { name: 'Lam Điện', hex: '#00D2D3', glow: 'rgba(0, 210, 211, 0.6)' },
-  { name: 'Cam Cháy', hex: '#FF9F43', glow: 'rgba(255, 159, 67, 0.6)' }
+// --------------------------------------------------------
+// 1. CARDS DATABASE (All 22+ Cards aligned with Color_Spill)
+// --------------------------------------------------------
+const CARD_DATABASE = [
+  {
+    id: 'Shield',
+    name: 'Khiên',
+    type: 'Buff',
+    isPassive: true,
+    target: 'passive',
+    icon: 'assets/cards/Shield.png',
+    desc: 'Thẻ bị động: Tự động kích hoạt từ trong túi để chặn đứng 1 đòn debuff/tấn công từ đối thủ.',
+    qty: 3
+  },
+  {
+    id: 'Counter',
+    name: 'Phản Đòn',
+    type: 'Buff',
+    isPassive: true,
+    target: 'passive',
+    icon: 'assets/cards/Counter.png',
+    desc: 'Thẻ bị động: Tự động kích hoạt từ trong túi để phản ngược debuff về lại kẻ vừa tấn công bạn.',
+    qty: 2
+  },
+  {
+    id: 'Nuke',
+    name: 'Khai Hoang',
+    type: 'Buff',
+    target: 'global',
+    icon: 'assets/cards/LandReclaimation.png',
+    desc: 'Kéo vào sân để chiếm ngẫu nhiên 3 ô trống chưa có chủ trên khắp bản đồ.',
+    qty: 3
+  },
+  {
+    id: 'ImortalLine',
+    name: 'Tuyến Bất Tử',
+    type: 'Buff',
+    target: 'cell',
+    icon: 'assets/cards/ImmortalCross.png',
+    desc: 'Kéo thả vào 1 ô của bạn: Hàng và cột chữ thập qua ô đó được bảo vệ không thể bị ăn trong 3 vòng.',
+    qty: 2
+  },
+  {
+    id: 'UnexpectedLuck',
+    name: 'May Mắn Bất Ngờ',
+    type: 'Buff',
+    target: 'self',
+    icon: 'assets/cards/UnexpectedLuck.png',
+    desc: 'Kéo vào sân để lập tức rút thêm 2 thẻ bài mới từ bộ bài về tay.',
+    qty: 3
+  },
+  {
+    id: 'GainMomentum',
+    name: 'Lùi Một Bước',
+    type: 'Buff',
+    target: 'self',
+    icon: 'assets/cards/GainMomentum.png',
+    desc: 'Lượt này bị khóa dùng thẻ bài, nhưng lượt kế tiếp bạn được rút thêm tới 3 lá bài.',
+    qty: 2
+  },
+  {
+    id: 'CardCollection',
+    name: 'Thu Thập',
+    type: 'Buff',
+    target: 'self',
+    icon: 'assets/cards/Interest.png',
+    desc: 'Rút số thẻ bài tương ứng với diện tích lãnh thổ (mỗi 12 ô được rút 1 lá, tối thiểu 1 lá).',
+    qty: 2
+  },
+  // 5 EXODIA SHARDS (Unique: exactly 1 copy each)
+  {
+    id: 'Shard1',
+    name: 'Mảnh Vỡ I',
+    type: 'Buff',
+    target: 'self',
+    icon: 'assets/cards/Shard_1.png',
+    desc: 'Mảnh vỡ cổ đại 1/5. Thu thập đủ bộ 5 mảnh vỡ để NGAY LẬP TỨC THẮNG TRẬN ĐẤU!',
+    qty: 1
+  },
+  {
+    id: 'Shard2',
+    name: 'Mảnh Vỡ II',
+    type: 'Buff',
+    target: 'self',
+    icon: 'assets/cards/Shard_2.png',
+    desc: 'Mảnh vỡ cổ đại 2/5. Thu thập đủ bộ 5 mảnh vỡ để NGAY LẬP TỨC THẮNG TRẬN ĐẤU!',
+    qty: 1
+  },
+  {
+    id: 'Shard3',
+    name: 'Mảnh Vỡ III',
+    type: 'Buff',
+    target: 'self',
+    icon: 'assets/cards/Shard_3.png',
+    desc: 'Mảnh vỡ cổ đại 3/5. Thu thập đủ bộ 5 mảnh vỡ để NGAY LẬP TỨC THẮNG TRẬN ĐẤU!',
+    qty: 1
+  },
+  {
+    id: 'Shard4',
+    name: 'Mảnh Vỡ IV',
+    type: 'Buff',
+    target: 'self',
+    icon: 'assets/cards/Shard_4.png',
+    desc: 'Mảnh vỡ cổ đại 4/5. Thu thập đủ bộ 5 mảnh vỡ để NGAY LẬP TỨC THẮNG TRẬN ĐẤU!',
+    qty: 1
+  },
+  {
+    id: 'Shard5',
+    name: 'Mảnh Vỡ V',
+    type: 'Buff',
+    target: 'self',
+    icon: 'assets/cards/Shard_5.png',
+    desc: 'Mảnh vỡ cổ đại 5/5. Thu thập đủ bộ 5 mảnh vỡ để NGAY LẬP TỨC THẮNG TRẬN ĐẤU!',
+    qty: 1
+  },
+  // DEBUFF CARDS
+  {
+    id: 'BanTurn',
+    name: 'Cấm Lượt',
+    type: 'Debuff',
+    target: 'opponent',
+    icon: 'assets/cards/BanTurn.png',
+    desc: 'Chọn 1 đối thủ: Bắt buộc họ phải bỏ qua lượt đi kế tiếp của mình.',
+    qty: 3
+  },
+  {
+    id: 'DisableOnHand',
+    name: 'Khóa Bài',
+    type: 'Debuff',
+    target: 'opponent',
+    icon: 'assets/cards/Disable.png',
+    desc: 'Chọn 1 đối thủ: Khóa toàn bộ thẻ bài trên tay họ, không thể sử dụng trong 1 lượt.',
+    qty: 2
+  },
+  {
+    id: 'Rival',
+    name: 'Đối Thủ Truyền Kiếp',
+    type: 'Debuff',
+    target: 'opponent',
+    icon: 'assets/cards/Rival.png',
+    desc: 'Chọn 1 đối thủ: Bản thân được miễn nhiễm hoàn toàn mọi hiệu ứng từ đối thủ này trong 3 lượt.',
+    qty: 2
+  },
+  {
+    id: 'Psyco',
+    name: 'Thao Túng Tâm Lý',
+    type: 'Debuff',
+    target: 'opponent',
+    icon: 'assets/cards/Psycopath.png',
+    desc: 'Thao túng 1 đối thủ! Lượt kế tiếp của họ, bạn sẽ là người đi cờ thay thế!',
+    qty: 1
+  },
+  {
+    id: 'LoseControl',
+    name: 'Mất Kiểm Soát',
+    type: 'Debuff',
+    target: 'opponent',
+    icon: 'assets/cards/LoseControl.png',
+    desc: 'Khiến 1 đối thủ bị mất kiểm soát, máy sẽ tự động đi 1 nước ngẫu nhiên ở lượt kế tiếp.',
+    qty: 2
+  },
+  {
+    id: 'SwapCard',
+    name: 'Tráo Bài',
+    type: 'Debuff',
+    target: 'opponent',
+    icon: 'assets/cards/SwapCard.png',
+    desc: 'Hoán đổi toàn bộ các lá bài trên tay mình với 1 đối thủ được chọn!',
+    qty: 2
+  },
+  {
+    id: 'StealCard',
+    name: 'Trộm Bài',
+    type: 'Debuff',
+    target: 'opponent_steal',
+    icon: 'assets/cards/StealCard.png',
+    desc: 'Mở toàn bộ bài của đối thủ được xáo trộn dưới dạng dấu ❓, chọn 1 lá để trộm về tay!',
+    qty: 2
+  },
+  {
+    id: 'ShowCard',
+    name: 'Xem Bài',
+    type: 'Debuff',
+    target: 'opponent',
+    icon: 'assets/cards/ShowCard.png',
+    desc: 'Soi toàn bộ các lá bài bí mật đang có trên tay của đối thủ được chọn.',
+    qty: 2
+  },
+  // NEUTRAL CARDS
+  {
+    id: 'BodySwap',
+    name: 'Hoán Đổi Thể Xác',
+    type: 'Neutral',
+    target: 'opponent',
+    icon: 'assets/cards/BodySwap.png',
+    desc: 'Đại chiêu lật kèo! Hoán đổi toàn bộ các ô lãnh thổ đã chiếm của mình với 1 đối thủ!',
+    qty: 1
+  },
+  {
+    id: 'BlockCell',
+    name: 'Phong Ấn Ô',
+    type: 'Neutral',
+    target: 'cell_empty',
+    icon: 'assets/cards/BlockCell.png',
+    desc: 'Kéo thả vào 1 ô trống trên bản đồ để phong ấn vĩnh viễn (ô cấm), không ai có thể chiếm được.',
+    qty: 3
+  },
+  {
+    id: 'CastleIsolate',
+    name: 'Lâu Đài Cô Độc',
+    type: 'Neutral',
+    target: 'cell_empty',
+    icon: 'assets/cards/CastleIsolate.png',
+    desc: 'Kéo thả vào 1 ô trống cách xa vùng đất của bạn, biến 8 ô xung quanh thành lãnh thổ của bạn!',
+    qty: 2
+  },
+  {
+    id: 'ReverseWind',
+    name: 'Gió Đổi Chiều',
+    type: 'Neutral',
+    target: 'global',
+    icon: 'assets/cards/ReverseWind.png',
+    desc: 'Đảo ngược chiều thứ tự đi của trận đấu (thuận chiều <-> ngược chiều kim đồng hồ).',
+    qty: 2
+  },
+  {
+    id: 'PeaceWorld',
+    name: 'Ngày Hoà Bình',
+    type: 'Neutral',
+    target: 'global',
+    icon: 'assets/cards/WorldPeace.png',
+    desc: 'Toàn bộ đấu thủ bị khóa không thể sử dụng thẻ bài trong 3 lượt tiếp theo.',
+    qty: 1
+  },
+  {
+    id: 'RockPaperScissor',
+    name: 'Oẳn Tù Tì',
+    type: 'Neutral',
+    target: 'opponent',
+    icon: 'assets/cards/Rock.png',
+    desc: 'Thách đấu Kéo Búa Bao với đối thủ! Người chiến thắng cướp 3 ô lãnh thổ kề cận của kẻ thua!',
+    qty: 2
+  }
 ];
 
-const BOT_NAMES = ['Viper', 'Shadow', 'Spark', 'Glitch', 'Phantom', 'Titan', 'Blaze', 'Pulse'];
-const RANDOM_PLAYER_NAMES = ['ChromaKnight', 'PixelKing', 'NeonGhost', 'ColorMaster', 'HyperDrive', 'Vortex', 'CyberRider'];
+// --------------------------------------------------------
+// 2. BOARD CONFIG & PLAYERS SETUP
+// --------------------------------------------------------
+const BOARD_SIZE = 16; // 16x16 = 256 cells
 
-const POWERUP_TYPES = [
-  { type: 'speed', icon: '⚡', name: 'Tốc độ', color: '#FFE66D' },
-  { type: 'bomb', icon: '💣', name: 'Bom sơn', color: '#FF6B6B' },
-  { type: 'shield', icon: '🛡️', name: 'Khiên đuôi', color: '#4ECDC4' },
-  { type: 'freeze', icon: '❄️', name: 'Đóng băng', color: '#00D2D3' }
+const PLAYER_PROFILES = [
+  { id: 1, name: 'Player 1', color: '#1acc33', glow: 'rgba(26, 204, 51, 0.6)', spawn: { x: 1, y: 1 } },
+  { id: 2, name: 'Player 2', color: '#a020f0', glow: 'rgba(160, 32, 240, 0.6)', spawn: { x: 14, y: 14 } },
+  { id: 3, name: 'Player 3', color: '#00e5ff', glow: 'rgba(0, 229, 255, 0.6)', spawn: { x: 14, y: 1 } },
+  { id: 4, name: 'Player 4', color: '#ffd700', glow: 'rgba(255, 215, 0, 0.6)', spawn: { x: 1, y: 14 } }
 ];
 
+// ========================================================
+// 3. COLOR SPILL BOARD GAME CLASS
+// ========================================================
 class ColorSpillGame {
   constructor() {
+    this.network = new NetworkManager(this);
+
+    // Game Mode & Settings
+    this.isMatchActive = false;
+    this.matchMode = 2; // 2 or 4 players
+    this.difficulty = 'normal'; // 'easy', 'normal', 'hard'
+    this.localPlayerId = 1;
+
+    // Board Matrix: [x][y] = { owner: 0..4, blocked: bool, protectedUntil: 0 }
+    this.grid = [];
+    this.totalCells = BOARD_SIZE * BOARD_SIZE;
+
+    // Turn System (30 seconds per turn)
+    this.currentTurnIndex = 0;
+    this.turnDirection = 1;    // 1 or -1
+    this.turnTimer = 30;       // Updated to 30s as requested
+    this.timerInterval = null;
+    this.turnNumber = 1;
+    this.remainingMoves = 0;   // 1 move per turn
+
+    // Drag and Drop & Tap-to-Select Card State
+    this.draggedCardData = null; // { card, index }
+    this.selectedCardIndex = null; // for mobile/desktop tap-to-select
+    this.pendingCardEffect = null;
+
+    // Players Array
+    this.players = [];
+
+    // Card Decks
+    this.mainDeck = [];
+    this.discardDeck = [];
+
+    // Canvas & Rendering
     this.canvas = document.getElementById('gameCanvas');
     this.ctx = this.canvas.getContext('2d');
-
-    // BIG EXPANDED BOARD (56 x 56 grid = 3,136 cells!)
-    this.GRID_COLS = 56;
-    this.GRID_ROWS = 56;
-    this.CELL_SIZE = 26; // 1,456 x 1,456 px total world
-
-    // Camera system
-    this.camera = {
-      x: 0,
-      y: 0,
-      targetX: 0,
-      targetY: 0
-    };
-
-    // Game state
-    this.grid = []; // 2D array of { owner: id|null, trail: id|null }
-    this.players = [];
-    this.powerups = [];
+    this.cellSize = 40; // 640 / 16
+    this.hoverCell = null;
+    this.animFrameId = null;
     this.particles = [];
-    this.floatingTexts = [];
 
-    this.gameRunning = false;
-    this.gamePaused = false;
-    this.gameStartTime = 0;
-    this.elapsedSeconds = 0;
-    this.timerInterval = null;
-    this.powerupInterval = null;
-    this.hostBroadcastInterval = null;
-
-    // Player setup config
-    this.selectedColor = COLOR_PALETTE[0].hex;
-    this.playerName = 'ChromaKnight';
-    this.difficulty = 'normal';
-    this.bestScore = parseInt(localStorage.getItem('cs_best_score') || '0', 10);
-    this.myPlayerId = 0; // Local player ID in match
-
-    // Network manager for online mode
-    this.network = new NetworkManager(this);
-    this.currentMode = 'offline'; // 'offline' | 'host' | 'join'
-
-    this.initUI();
-    this.initOnlineUI();
-    this.bindEvents();
-    this.updateBestScoreDisplay();
+    // Bind UI & Inputs
+    this.initDOM();
+    this.initCanvasEvents();
+    this.initDragAndDrop();
+    this.buildCardsCatalog();
+    this.startRenderingLoop();
   }
 
-  // ----------------------------------------------------
-  // INITIALIZATION & UI
-  // ----------------------------------------------------
-  initUI() {
-    // Update live preview card
-    const updatePreview = () => {
-      const avatar = document.getElementById('previewAvatar');
-      const nameEl = document.getElementById('previewPlayerName');
-      if (avatar) {
-        avatar.style.backgroundColor = this.selectedColor;
-        const colDef = COLOR_PALETTE.find(c => c.hex === this.selectedColor);
-        if (colDef) avatar.style.boxShadow = `0 0 20px ${colDef.glow}`;
-      }
-      if (nameEl) {
-        nameEl.innerHTML = `${escapeHTML(this.playerName)} <span class="badge-you">(BẠN)</span>`;
-      }
-    };
-
-    // Render Color Palette in Lobby
-    const paletteEl = document.getElementById('colorPalette');
-    paletteEl.innerHTML = '';
-    COLOR_PALETTE.forEach((item, idx) => {
-      const swatch = document.createElement('div');
-      swatch.className = `color-swatch ${idx === 0 ? 'active' : ''}`;
-      swatch.style.backgroundColor = item.hex;
-      swatch.style.setProperty('--swatch-glow', item.glow);
-      swatch.title = item.name;
-      swatch.addEventListener('click', () => {
-        document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
-        swatch.classList.add('active');
-        this.selectedColor = item.hex;
-        updatePreview();
-      });
-      paletteEl.appendChild(swatch);
-    });
-
-    // Input name event
-    const nameInput = document.getElementById('playerNameInput');
-    nameInput.addEventListener('input', (e) => {
-      this.playerName = e.target.value.trim() || 'ChromaKnight';
-      updatePreview();
-    });
-
-    // Random name dice button
+  // ------------------------------------------------------
+  // DOM EVENT BINDINGS
+  // ------------------------------------------------------
+  initDOM() {
+    // Random Name button
+    const names = ['ChromaKnight', 'NeonVortex', 'CyberSpill', 'PrismLord', 'QuantumPixel', 'ApexPainter', 'HexaKing', 'AuraPhantom'];
     document.getElementById('btnRandomName').addEventListener('click', () => {
-      const rand = RANDOM_PLAYER_NAMES[Math.floor(Math.random() * RANDOM_PLAYER_NAMES.length)];
+      sound.playClick();
+      const rand = names[Math.floor(Math.random() * names.length)];
       document.getElementById('playerNameInput').value = rand;
-      this.playerName = rand;
-      updatePreview();
     });
 
-    updatePreview();
+    // Color Palette selector
+    const paletteEl = document.getElementById('colorPalette');
+    PLAYER_PROFILES.forEach((p, idx) => {
+      const div = document.createElement('div');
+      div.className = `color-choice ${idx === 0 ? 'active' : ''}`;
+      div.dataset.colorIdx = idx;
+      div.innerHTML = `
+        <div class="color-circle" style="background: ${p.color}; color: ${p.color}"></div>
+        <div class="color-name">${p.name}</div>
+      `;
+      div.addEventListener('click', () => {
+        sound.playClick();
+        document.querySelectorAll('.color-choice').forEach(c => c.classList.remove('active'));
+        div.classList.add('active');
+      });
+      paletteEl.appendChild(div);
+    });
 
-    // Difficulty buttons
+    // Match mode segmented control (2 or 4)
+    document.querySelectorAll('#matchModeControl .seg-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        sound.playClick();
+        document.querySelectorAll('#matchModeControl .seg-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.matchMode = parseInt(btn.dataset.mode, 10);
+      });
+    });
+
+    // Difficulty control
     document.querySelectorAll('#difficultyControl .seg-btn').forEach(btn => {
       btn.addEventListener('click', () => {
+        sound.playClick();
         document.querySelectorAll('#difficultyControl .seg-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         this.difficulty = btn.dataset.diff;
       });
     });
-  }
 
-  // ----------------------------------------------------
-  // MULTI-VIEW LOBBY CONTROLLER
-  // ----------------------------------------------------
-  switchView(targetViewId) {
-    document.querySelectorAll('.lobby-view').forEach(view => {
-      view.classList.add('hidden');
-    });
-    const target = document.getElementById(targetViewId);
-    if (target) target.classList.remove('hidden');
-  }
-
-  initOnlineUI() {
-    this.createPrivacy = 'public';
-    this.pendingJoinCode = null;
-
-    // 1. Navigation from Main Menu 3 Buttons
+    // Navigation buttons
     document.getElementById('btnNavOffline').addEventListener('click', () => {
-      this.switchView('viewOffline');
+      sound.playClick();
+      this.showView('viewOffline');
     });
     document.getElementById('btnNavCreateRoom').addEventListener('click', () => {
-      document.getElementById('createRoomNameInput').value = `Phòng của ${this.playerName}`;
-      this.switchView('viewCreateRoom');
+      sound.playClick();
+      this.showView('viewCreateRoom');
     });
     document.getElementById('btnNavFindRoom').addEventListener('click', () => {
-      this.switchView('viewFindRoom');
-      this.renderPublicRoomsList();
+      sound.playClick();
+      this.showView('viewFindRoom');
     });
 
-    // Back Buttons (Quay lại)
+    // Back buttons
     document.querySelectorAll('.btn-back').forEach(btn => {
       btn.addEventListener('click', () => {
-        this.switchView(btn.dataset.back || 'viewMain');
+        sound.playClick();
+        this.showView(btn.dataset.back);
       });
     });
 
-    // 2. Chơi với máy: Start Offline Button
+    // Start Offline Match
     document.getElementById('btnStartOffline').addEventListener('click', () => {
-      window.sounds.init();
+      sound.playClick();
       this.startOfflineMatch();
     });
 
-    // 3. Tạo phòng: Privacy Toggle (Public / Private)
-    document.querySelectorAll('#roomPrivacyControl .seg-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('#roomPrivacyControl .seg-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        this.createPrivacy = btn.dataset.privacy;
-
-        const passGroup = document.getElementById('roomPasswordGroup');
-        if (this.createPrivacy === 'private') {
-          passGroup.classList.remove('hidden');
-          document.getElementById('createRoomPasswordInput').focus();
-        } else {
-          passGroup.classList.add('hidden');
-          document.getElementById('createRoomPasswordInput').value = '';
-        }
-      });
-    });
-
-    // 4. Confirm Create Room Button
+    // Create Room
     document.getElementById('btnConfirmCreateRoom').addEventListener('click', () => {
-      window.sounds.init();
-      const roomName = document.getElementById('createRoomNameInput').value.trim() || `Phòng của ${this.playerName}`;
-      const password = document.getElementById('createRoomPasswordInput').value.trim();
-
-      // Enforce: Private rooms MUST have a password!
-      if (this.createPrivacy === 'private' && !password) {
-        alert('Phòng riêng tư bắt buộc phải đặt mật khẩu! Vui lòng nhập mật khẩu.');
-        document.getElementById('createRoomPasswordInput').focus();
-        return;
-      }
-
-      const btn = document.getElementById('btnConfirmCreateRoom');
-      btn.textContent = '⏳ Đang khởi tạo phòng...';
-      btn.disabled = true;
+      sound.playClick();
+      const roomName = document.getElementById('createRoomNameInput').value;
+      const isPrivate = document.querySelector('#roomPrivacyControl .seg-btn.active').dataset.privacy === 'private';
+      const password = document.getElementById('createRoomPasswordInput').value;
+      const myName = document.getElementById('playerNameInput').value || 'ChromaKnight';
 
       this.network.createRoom(
-        {
-          roomName: roomName,
-          isPrivate: this.createPrivacy === 'private',
-          password: password
+        { roomName, isPrivate, password },
+        { name: myName, color: PLAYER_PROFILES[0].color },
+        (code) => {
+          document.getElementById('displayRoomCode').innerText = code;
+          this.showView('viewHostWaiting');
+          this.updateHostLobbyUI();
         },
-        { name: this.playerName, color: this.selectedColor },
-        (roomCode, roomInfo) => {
-          btn.textContent = '🚀 TẠO PHÒNG & LẤY MÃ CODE';
-          btn.disabled = false;
+        (err) => alert('Lỗi tạo phòng: ' + err)
+      );
+    });
 
-          document.getElementById('displayRoomCode').textContent = `CSP-${roomCode}`;
-          const pBadge = document.getElementById('hostPrivacyBadge');
-          if (roomInfo.isPrivate) {
-            pBadge.textContent = '🔒 Riêng Tư';
-            pBadge.className = 'badge-privacy text-yellow';
-          } else {
-            pBadge.textContent = '🌐 Công Khai';
-            pBadge.className = 'badge-privacy text-teal';
-          }
+    document.getElementById('btnHostStartMatch').addEventListener('click', () => {
+      sound.playClick();
+      this.startOnlineMatchAsHost();
+    });
 
-          this.renderWaitingPlayerList('hostPlayerList', this.network.lobbyPlayers);
-          document.getElementById('hostPlayerCount').textContent = this.network.lobbyPlayers.length;
-          this.switchView('viewHostWaiting');
+    document.getElementById('btnCancelHost').addEventListener('click', () => {
+      sound.playClick();
+      this.network.disconnect();
+      this.showView('viewMain');
+    });
+
+    // Direct Join
+    document.getElementById('btnJoinDirect').addEventListener('click', () => {
+      sound.playClick();
+      const code = document.getElementById('joinDirectCodeInput').value;
+      if (!code) return;
+      const myName = document.getElementById('playerNameInput').value || 'GuestPlayer';
+
+      document.getElementById('directJoinStatus').innerText = 'Đang kết nối tới phòng...';
+      this.network.joinRoom(
+        code,
+        '',
+        { name: myName, color: PLAYER_PROFILES[1].color },
+        (c) => {
+          document.getElementById('guestRoomCodeTitle').innerText = c;
+          this.showView('viewGuestWaiting');
         },
         (err) => {
-          alert('Không thể tạo phòng: ' + (err.message || 'Lỗi kết nối WebRTC'));
-          btn.textContent = '🚀 TẠO PHÒNG & LẤY MÃ CODE';
-          btn.disabled = false;
+          document.getElementById('directJoinStatus').innerText = 'Không thể vào phòng: ' + err;
         }
       );
     });
 
-    // Copy Room Code
-    document.getElementById('btnCopyCode').addEventListener('click', () => {
-      const code = document.getElementById('displayRoomCode').textContent;
-      navigator.clipboard.writeText(code).then(() => {
-        const btn = document.getElementById('btnCopyCode');
-        btn.textContent = '✓ Đã chép!';
-        setTimeout(() => { btn.textContent = '📋 Sao chép'; }, 1500);
-      });
-    });
-
-    // Native Mobile Share API
-    const shareBtn = document.getElementById('btnShareCode');
-    if (shareBtn) {
-      shareBtn.addEventListener('click', () => {
-        const code = this.network.roomCode || document.getElementById('displayRoomCode').textContent.replace('CSP-', '');
-        const shareUrl = `${window.location.origin}${window.location.pathname}?room=CSP-${code}`;
-        if (navigator.share) {
-          navigator.share({
-            title: 'Vào chiến game Color Spill với tôi!',
-            text: `Mã phòng: CSP-${code}. Bấm link để vào phòng ngay!`,
-            url: shareUrl
-          }).catch(() => {});
-        } else {
-          navigator.clipboard.writeText(shareUrl).then(() => {
-            shareBtn.textContent = '✓ Đã chép link!';
-            setTimeout(() => { shareBtn.textContent = '📲 Chia sẻ'; }, 1500);
-          });
-        }
-      });
-    }
-
-    // Cancel Host
-    document.getElementById('btnCancelHost').addEventListener('click', () => {
-      this.network.disconnect();
-      this.switchView('viewMain');
-    });
-
-    // Host Start Match
-    document.getElementById('btnHostStartMatch').addEventListener('click', () => {
-      if (this.network.lobbyPlayers.length < 2) {
-        if (!confirm('Hiện tại chỉ có một mình bạn trong phòng (chế độ online không có Bot). Bạn có chắc muốn vào đấu trường một mình để thử nghiệm không?')) {
-          return;
-        }
-      }
-      this.startOnlineMatchAsHost();
-    });
-
-    // 5. Tìm phòng - Cách 1: Direct Code Join
-    document.getElementById('btnJoinDirect').addEventListener('click', () => {
-      window.sounds.init();
-      const codeInput = document.getElementById('joinDirectCodeInput').value.trim();
-      if (!codeInput) {
-        alert('Vui lòng nhập mã phòng (ví dụ: CSP-8492 hoặc 8492)!');
-        return;
-      }
-      this.attemptJoinRoom(codeInput, '');
-    });
-
-    // 6. Tìm phòng - Cách 2: Refresh Rooms Button
-    document.getElementById('btnRefreshRooms').addEventListener('click', () => {
-      this.renderPublicRoomsList();
-    });
-
-    // MQTT Room updates callback
-    this.onRoomsUpdated = () => {
-      this.renderPublicRoomsList();
-    };
-
-    // 7. Password Modal Confirm / Cancel
-    document.getElementById('btnSubmitPassword').addEventListener('click', () => {
-      const pass = document.getElementById('inputRoomPassword').value.trim();
-      if (!pass) {
-        document.getElementById('passwordErrorText').textContent = 'Vui lòng nhập mật khẩu!';
-        return;
-      }
-      document.getElementById('passwordModal').classList.add('hidden');
-      if (this.pendingJoinCode) {
-        this.attemptJoinRoom(this.pendingJoinCode, pass);
-      }
-    });
-
-    document.getElementById('btnCancelPassword').addEventListener('click', () => {
-      document.getElementById('passwordModal').classList.add('hidden');
-      this.pendingJoinCode = null;
-    });
-
-    // 8. Guest Leave Room
     document.getElementById('btnLeaveGuest').addEventListener('click', () => {
+      sound.playClick();
       this.network.disconnect();
-      this.switchView('viewMain');
+      this.showView('viewMain');
     });
 
-    // Network Lobby update callback
-    this.onLobbyUpdate = (players) => {
-      if (this.network.isHost) {
-        this.renderWaitingPlayerList('hostPlayerList', players);
-        document.getElementById('hostPlayerCount').textContent = players.length;
-      } else {
-        this.renderWaitingPlayerList('guestPlayerList', players);
+    // Audio & Header Actions
+    document.getElementById('btnSoundToggle').addEventListener('click', () => {
+      const on = sound.toggleSound();
+      document.getElementById('btnSoundToggle').innerText = on ? '🔊' : '🔇';
+    });
+    document.getElementById('btnMusicToggle').addEventListener('click', () => {
+      const on = sound.toggleMusic();
+      document.getElementById('btnMusicToggle').innerText = on ? '🎵' : '🔇';
+    });
+    document.getElementById('btnInGameTutorial').addEventListener('click', () => {
+      sound.playClick();
+      document.getElementById('tutorialModal').classList.remove('hidden');
+    });
+    document.getElementById('btnOpenTutorial').addEventListener('click', () => {
+      sound.playClick();
+      document.getElementById('tutorialModal').classList.remove('hidden');
+    });
+    document.getElementById('btnCloseTutorial').addEventListener('click', () => {
+      sound.playClick();
+      document.getElementById('tutorialModal').classList.add('hidden');
+    });
+    document.getElementById('btnGotTutorial').addEventListener('click', () => {
+      sound.playClick();
+      document.getElementById('tutorialModal').classList.add('hidden');
+    });
+    document.getElementById('btnQuitMatch').addEventListener('click', () => {
+      if (confirm('Bạn có chắc chắn muốn rời trận đấu hiện tại?')) {
+        this.exitMatchToLobby();
       }
-    };
+    });
 
-    // Auto-detect room link from URL (?room=CSP-XXXX or ?room=XXXX)
-    try {
-      const urlParams = new URLSearchParams(window.location.search);
-      const roomParam = urlParams.get('room');
-      if (roomParam) {
-        const cleanCode = roomParam.trim().toUpperCase();
-        const directInput = document.getElementById('joinDirectCodeInput');
-        if (directInput) {
-          directInput.value = cleanCode;
-        }
-        this.switchView('viewFindRoom');
-        const statusEl = document.getElementById('directJoinStatus');
-        if (statusEl) {
-          statusEl.textContent = `✨ Đã nhận mã ${cleanCode} từ link chia sẻ! Bấm "VÀO PHÒNG" để tham chiến.`;
-          statusEl.className = 'join-status-text text-teal';
-        }
+    // Target modal cancel
+    document.getElementById('btnCancelTargetSelect').addEventListener('click', () => {
+      sound.playClick();
+      this.pendingCardEffect = null;
+      document.getElementById('targetSelectModal').classList.add('hidden');
+    });
+
+    // Peep modal close
+    document.getElementById('btnClosePeepModal').addEventListener('click', () => {
+      document.getElementById('peepCardsModal').classList.add('hidden');
+    });
+    document.getElementById('btnGotPeep').addEventListener('click', () => {
+      document.getElementById('peepCardsModal').classList.add('hidden');
+    });
+
+    // Game Over buttons
+    document.getElementById('btnPlayAgain').addEventListener('click', () => {
+      sound.playClick();
+      document.getElementById('gameOverModal').classList.add('hidden');
+      if (this.network.isOnline) {
+        if (this.network.isHost) this.startOnlineMatchAsHost();
+      } else {
+        this.startOfflineMatch();
       }
-    } catch (e) {
-      console.warn('URL param parse error:', e);
+    });
+    document.getElementById('btnBackToLobby').addEventListener('click', () => {
+      sound.playClick();
+      document.getElementById('gameOverModal').classList.add('hidden');
+      this.exitMatchToLobby();
+    });
+
+    // Rock Paper Scissors choice buttons
+    document.querySelectorAll('.rps-choice-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.handleRPSChoice(btn.dataset.choice);
+      });
+    });
+  }
+
+  showView(viewId) {
+    document.querySelectorAll('.lobby-view').forEach(v => v.classList.add('hidden'));
+    const target = document.getElementById(viewId);
+    if (target) target.classList.remove('hidden');
+  }
+
+  // ------------------------------------------------------
+  // 4. DRAG & DROP IMPLEMENTATION (BOARD & TRASH BIN)
+  // ------------------------------------------------------
+  initDragAndDrop() {
+    const boardContainer = document.getElementById('boardCanvasContainer');
+    const trashZone = document.getElementById('trashDropZone');
+    const dropHint = document.getElementById('boardDropHint');
+
+    // 1. BOARD CANVAS DROP ZONE
+    boardContainer.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      if (this.draggedCardData) {
+        boardContainer.classList.add('drag-over');
+        dropHint.classList.remove('hidden');
+      }
+    });
+
+    boardContainer.addEventListener('dragleave', () => {
+      boardContainer.classList.remove('drag-over');
+      dropHint.classList.add('hidden');
+    });
+
+    boardContainer.addEventListener('drop', (e) => {
+      e.preventDefault();
+      boardContainer.classList.remove('drag-over');
+      dropHint.classList.add('hidden');
+
+      if (!this.draggedCardData) return;
+
+      const { card, index } = this.draggedCardData;
+      this.draggedCardData = null;
+
+      // Calculate cell drop coordinates
+      const rect = this.canvas.getBoundingClientRect();
+      const scaleX = this.canvas.width / rect.width;
+      const scaleY = this.canvas.height / rect.height;
+      const dropCellX = Math.floor(((e.clientX - rect.left) * scaleX) / this.cellSize);
+      const dropCellY = Math.floor(((e.clientY - rect.top) * scaleY) / this.cellSize);
+
+      this.handleCardDropOnBoard(card, index, dropCellX, dropCellY);
+    });
+
+    // 2. TRASH BIN DROP ZONE
+    trashZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      if (this.draggedCardData) {
+        trashZone.classList.add('drag-over');
+      }
+    });
+
+    trashZone.addEventListener('dragleave', () => {
+      trashZone.classList.remove('drag-over');
+    });
+
+    trashZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      trashZone.classList.remove('drag-over');
+
+      if (!this.draggedCardData) return;
+
+      const { card, index } = this.draggedCardData;
+      this.draggedCardData = null;
+
+      this.discardCard(this.localPlayerId, index);
+      this.setBanner(`🗑️ ĐÃ VỨT THẺ:`, `Bạn đã ném thẻ ${card.name} vào thùng rác.`);
+    });
+
+    // 3. TRASH BIN CLICK / TAP TO DISCARD (Mobile & PC Tap-to-Select)
+    trashZone.addEventListener('click', () => {
+      if (this.selectedCardIndex !== null) {
+        const myPlayer = this.getPlayerById(this.localPlayerId);
+        if (!myPlayer) return;
+        const card = myPlayer.handCards[this.selectedCardIndex];
+        const cardIndex = this.selectedCardIndex;
+        this.selectedCardIndex = null;
+        this.discardCard(this.localPlayerId, cardIndex);
+        this.setBanner(`🗑️ ĐÃ VỨT THẺ:`, `Bạn đã ném thẻ ${card.name} vào thùng rác.`);
+      } else {
+        sound.playTick();
+        this.setBanner(`🗑️ THÙNG RÁC:`, `Chạm chọn 1 lá bài trên tay rồi chạm vào đây (hoặc kéo thả) để vứt bỏ.`);
+      }
+    });
+  }
+
+  handleCardDropOnBoard(card, cardIndex, cellX, cellY) {
+    const active = this.getActivePlayer();
+    if (active.id !== this.localPlayerId) {
+      alert('Chưa đến lượt của bạn!');
+      return;
     }
-  }
-
-  attemptJoinRoom(code, password) {
-    const statusEl = document.getElementById('directJoinStatus');
-    statusEl.textContent = '⏳ Đang kết nối tới phòng...';
-
-    this.network.joinRoom(
-      code,
-      password,
-      { name: this.playerName, color: this.selectedColor },
-      (roomCode) => {
-        statusEl.textContent = '✓ Kết nối thành công!';
-        document.getElementById('guestRoomCodeTitle').textContent = `CSP-${roomCode}`;
-        this.renderWaitingPlayerList('guestPlayerList', this.network.lobbyPlayers);
-        this.switchView('viewGuestWaiting');
-      },
-      (err) => {
-        statusEl.textContent = '❌ Không tìm thấy phòng hoặc phòng đã đóng!';
-      }
-    );
-
-    this.onJoinFailed = (reason) => {
-      if (reason && reason.includes('mật khẩu')) {
-        this.promptPasswordForRoom(code, 'Mật khẩu không chính xác, vui lòng thử lại:');
-      } else {
-        alert(reason || 'Không thể vào phòng!');
-      }
-    };
-  }
-
-  promptPasswordForRoom(code, customMsg) {
-    this.pendingJoinCode = code;
-    document.getElementById('inputRoomPassword').value = '';
-    document.getElementById('passwordErrorText').textContent = customMsg || '';
-    document.getElementById('passwordModal').classList.remove('hidden');
-    document.getElementById('inputRoomPassword').focus();
-  }
-
-  renderPublicRoomsList() {
-    const container = document.getElementById('publicRoomsContainer');
-    if (!container) return;
-
-    const rooms = this.network.getCleanRoomList();
-    container.innerHTML = '';
-
-    if (rooms.length === 0) {
-      container.innerHTML = `
-        <div class="room-empty-state">
-          <div>📡 Hiện chưa thấy phòng nào đang mở trên mạng.</div>
-          <div style="margin-top: 6px; font-size: 0.78rem; color: #64748b;">
-            Bạn có thể bấm <strong>"TẠO PHÒNG"</strong> hoặc nhập mã code phòng ở Cách 1!
-          </div>
-        </div>
-      `;
+    if (active.disabledHandTurns > 0) {
+      alert('Bạn đang bị khóa sử dụng thẻ bài ở lượt này!');
       return;
     }
 
-    rooms.forEach(r => {
-      const card = document.createElement('div');
-      card.className = 'room-card';
-      card.innerHTML = `
-        <div class="rc-left">
-          <div class="rc-name">${escapeHTML(r.name || 'Phòng Chiến Đấu')}</div>
-          <div class="rc-meta">
-            <span>Chủ: <strong>${escapeHTML(r.hostName)}</strong></span>
-            <span>•</span>
-            <span>Mã: <strong class="text-teal">CSP-${r.code}</strong></span>
-          </div>
-        </div>
-        <div class="rc-right">
-          <span class="${r.isPrivate ? 'rc-badge-priv' : 'rc-badge-pub'}">
-            ${r.isPrivate ? '🔒 Riêng tư' : '🌐 Công khai'}
-          </span>
-          <span style="font-size: 0.8rem; font-weight: 700; color: #cbd5e1;">${r.count}/${r.max}</span>
-        </div>
-      `;
+    // Passive cards (Shield & Counter) cannot be dragged to the board!
+    if (card.isPassive || card.id === 'Shield' || card.id === 'Counter') {
+      sound.playTick();
+      this.setBanner(`🛡️ THẺ BỊ ĐỘNG:`, `${card.name} chỉ tự động kích hoạt từ trong túi khi bị kẻ địch tấn công! Không thể thi triển lên sân (kéo vào Thùng Rác nếu muốn bỏ).`);
+      return;
+    }
 
-      card.addEventListener('click', () => {
-        window.sounds.init();
-        if (r.isPrivate) {
-          this.promptPasswordForRoom(r.code);
-        } else {
-          this.attemptJoinRoom(r.code, '');
-        }
-      });
+    // Specific cell targeting cards (Phong Ấn Ô, Lâu Đài Cô Độc, Tuyến Bất Tử)
+    if (card.target === 'cell' || card.target === 'cell_empty') {
+      this.pendingCardEffect = { playerId: this.localPlayerId, card, cardIndex };
+      this.selectedCardIndex = cardIndex;
+      sound.playTick();
+      this.renderHandCardsUI();
 
-      container.appendChild(card);
-    });
-  }
-
-  renderWaitingPlayerList(elementId, players) {
-    const listEl = document.getElementById(elementId);
-    if (!listEl) return;
-    listEl.innerHTML = '';
-    players.forEach((p, idx) => {
-      const li = document.createElement('li');
-      li.className = 'waiting-player-item';
-      li.innerHTML = `
-        <div class="wp-info">
-          <span class="wp-color" style="background-color: ${p.color};"></span>
-          <span>${escapeHTML(p.name)}</span>
-        </div>
-        <span class="wp-tag">${p.isHost ? '👑 CHỦ PHÒNG' : `NGƯỜI CHƠI #${idx + 1}`}</span>
-      `;
-      listEl.appendChild(li);
-    });
-  }
-
-  bindEvents() {
-    // Tutorial Modals
-    const openTut = () => document.getElementById('tutorialModal').classList.remove('hidden');
-    const closeTut = () => document.getElementById('tutorialModal').classList.add('hidden');
-    document.getElementById('btnOpenTutorial').addEventListener('click', openTut);
-    document.getElementById('btnInGameTutorial').addEventListener('click', () => {
-      this.setPause(true);
-      openTut();
-    });
-    document.getElementById('btnCloseTutorial').addEventListener('click', closeTut);
-    document.getElementById('btnGotTutorial').addEventListener('click', closeTut);
-
-    // Pause Modal
-    document.getElementById('btnPause').addEventListener('click', () => this.setPause(true));
-    document.getElementById('btnResume').addEventListener('click', () => this.setPause(false));
-    document.getElementById('btnRestartFromPause').addEventListener('click', () => {
-      this.setPause(false);
-      if (this.network.isOnline) {
-        this.showLobby();
+      if (card.target === 'cell_empty') {
+        this.setBanner(`🎯 CHỈ ĐỊNH Ô: [${card.name}]`, `Bấm vào 1 ô TRỐNG (chưa có chủ) trên bàn cờ để áp dụng. (Chạm lại thẻ để hủy)`);
       } else {
-        this.startOfflineMatch();
+        this.setBanner(`🎯 CHỈ ĐỊNH Ô: [${card.name}]`, `Bấm vào 1 ô THUỘC LÃNH THỔ CỦA BẠN trên bàn cờ để áp dụng. (Chạm lại thẻ để hủy)`);
       }
-    });
-    document.getElementById('btnExitToLobby').addEventListener('click', () => {
-      this.setPause(false);
-      this.showLobby();
-    });
-
-    // Sound toggle
-    document.getElementById('btnSoundToggle').addEventListener('click', () => {
-      const enabled = window.sounds.toggle();
-      document.getElementById('btnSoundToggle').textContent = enabled ? '🔊' : '🔇';
-    });
-
-    // Fullscreen toggle for Mobile and Desktop
-    const btnFullscreen = document.getElementById('btnFullscreen');
-    if (btnFullscreen) {
-      btnFullscreen.addEventListener('click', () => {
-        if (!document.fullscreenElement) {
-          const target = document.documentElement;
-          if (target.requestFullscreen) target.requestFullscreen().catch(() => {});
-          else if (target.webkitRequestFullscreen) target.webkitRequestFullscreen();
-          btnFullscreen.textContent = '✖️';
-          btnFullscreen.title = 'Thoát toàn màn hình';
-        } else {
-          if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
-          else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
-          btnFullscreen.textContent = '⛶';
-          btnFullscreen.title = 'Toàn màn hình';
-        }
-      });
-      document.addEventListener('fullscreenchange', () => {
-        btnFullscreen.textContent = document.fullscreenElement ? '✖️' : '⛶';
-      });
+      return;
     }
 
-    // Leaderboard collapse toggle on Mobile
-    const btnToggleLb = document.getElementById('btnToggleLb');
-    const liveLb = document.getElementById('liveLeaderboard');
-    const lbHeader = document.getElementById('lbHeader');
-    if (liveLb) {
-      const toggleLb = () => {
-        liveLb.classList.toggle('lb-collapsed');
-        if (btnToggleLb) {
-          btnToggleLb.textContent = liveLb.classList.contains('lb-collapsed') ? '▸' : '▾';
-        }
-      };
-      if (btnToggleLb) btnToggleLb.addEventListener('click', (e) => { e.stopPropagation(); toggleLb(); });
-      if (lbHeader) lbHeader.addEventListener('click', toggleLb);
+    // Opponent targeting cards: LUÔN mở modal chọn đối thủ để chỉ định
+    if (card.target === 'opponent' || card.target === 'opponent_steal') {
+      this.openTargetSelectModal(card, cardIndex);
+      return;
     }
 
-    // Toggle virtual D-pad buttons
-    const btnToggleDpad = document.getElementById('btnToggleDpad');
-    const virtualDpad = document.getElementById('virtualDpad');
-    if (btnToggleDpad && virtualDpad) {
-      let dpadVisible = true;
-      btnToggleDpad.addEventListener('click', () => {
-        dpadVisible = !dpadVisible;
-        virtualDpad.style.display = dpadVisible ? 'grid' : 'none';
-        btnToggleDpad.textContent = dpadVisible ? '🕹️ Phím: Bật' : '🕹️ Phím: Tắt';
-        btnToggleDpad.classList.toggle('active', dpadVisible);
-      });
-    }
-
-    // Game Over Actions
-    document.getElementById('btnPlayAgain').addEventListener('click', () => {
-      document.getElementById('gameOverModal').classList.add('hidden');
-      if (this.network.isOnline) {
-        this.showLobby();
-      } else {
-        this.startOfflineMatch();
-      }
-    });
-    document.getElementById('btnChangeSettings').addEventListener('click', () => {
-      document.getElementById('gameOverModal').classList.add('hidden');
-      this.showLobby();
-    });
-
-    // Keyboard controls (PC)
-    window.addEventListener('keydown', (e) => {
-      if (!this.gameRunning || this.gamePaused) return;
-      const p = this.players[this.myPlayerId];
-      if (!p || !p.isAlive) return;
-
-      let newDir = null;
-      switch (e.key) {
-        case 'ArrowUp':
-        case 'w':
-        case 'W':
-          if (p.dir.y === 0) newDir = { x: 0, y: -1 };
-          e.preventDefault();
-          break;
-        case 'ArrowDown':
-        case 's':
-        case 'S':
-          if (p.dir.y === 0) newDir = { x: 0, y: 1 };
-          e.preventDefault();
-          break;
-        case 'ArrowLeft':
-        case 'a':
-        case 'A':
-          if (p.dir.x === 0) newDir = { x: -1, y: 0 };
-          e.preventDefault();
-          break;
-        case 'ArrowRight':
-        case 'd':
-        case 'D':
-          if (p.dir.x === 0) newDir = { x: 1, y: 0 };
-          e.preventDefault();
-          break;
-        case 'p':
-        case 'P':
-        case 'Escape':
-          this.setPause(!this.gamePaused);
-          break;
-      }
-
-      if (newDir) {
-        p.nextDir = newDir;
-        if (this.network.isOnline && !this.network.isHost) {
-          this.network.sendInputToHost(newDir);
-        }
-      }
-    });
-
-    // Mobile D-pad button controls (Touch & Click)
-    document.querySelectorAll('.dpad-btn').forEach(btn => {
-      btn.addEventListener('touchstart', (e) => {
-        e.preventDefault();
-        this.handleDirectionInput(btn.dataset.dir);
-      }, { passive: false });
-      btn.addEventListener('click', () => {
-        this.handleDirectionInput(btn.dataset.dir);
-      });
-    });
-
-    // Touch slide/drag support across D-pad directional buttons
-    const vDpad = document.getElementById('virtualDpad');
-    if (vDpad) {
-      let lastTouchDir = null;
-      vDpad.addEventListener('touchmove', (e) => {
-        if (!e.touches || e.touches.length === 0) return;
-        const touch = e.touches[0];
-        const elem = document.elementFromPoint(touch.clientX, touch.clientY);
-        const btn = elem ? elem.closest('.dpad-btn') : null;
-        if (btn && btn.dataset.dir && btn.dataset.dir !== lastTouchDir) {
-          lastTouchDir = btn.dataset.dir;
-          this.handleDirectionInput(btn.dataset.dir);
-        }
-      }, { passive: true });
-      vDpad.addEventListener('touchend', () => { lastTouchDir = null; }, { passive: true });
-      vDpad.addEventListener('touchcancel', () => { lastTouchDir = null; }, { passive: true });
-    }
-
-    // Mobile Canvas Touch Swipe Gesture Detection
-    let touchStartX = 0;
-    let touchStartY = 0;
-    let isTouching = false;
-    const swipeThreshold = 18; // Minimum distance in pixels to trigger a turn
-
-    const onTouchStart = (e) => {
-      if (e.touches && e.touches.length > 0) {
-        touchStartX = e.touches[0].clientX;
-        touchStartY = e.touches[0].clientY;
-        isTouching = true;
-      }
-    };
-
-    const onTouchMove = (e) => {
-      if (!isTouching || !this.gameRunning || this.gamePaused || !e.touches || e.touches.length === 0) return;
-
-      const currentX = e.touches[0].clientX;
-      const currentY = e.touches[0].clientY;
-      const deltaX = currentX - touchStartX;
-      const deltaY = currentY - touchStartY;
-      const dist = Math.hypot(deltaX, deltaY);
-
-      if (dist >= swipeThreshold) {
-        if (e.cancelable) e.preventDefault(); // Prevent page scroll while swiping
-        if (Math.abs(deltaX) > Math.abs(deltaY)) {
-          this.handleDirectionInput(deltaX > 0 ? 'right' : 'left');
-        } else {
-          this.handleDirectionInput(deltaY > 0 ? 'down' : 'up');
-        }
-        // Continuous drag tracking: re-anchor to current position
-        touchStartX = currentX;
-        touchStartY = currentY;
-      }
-    };
-
-    const onTouchEnd = () => {
-      isTouching = false;
-    };
-
-    const canvasContainer = document.getElementById('canvasContainer');
-    if (canvasContainer) {
-      canvasContainer.addEventListener('touchstart', onTouchStart, { passive: true });
-      canvasContainer.addEventListener('touchmove', onTouchMove, { passive: false });
-      canvasContainer.addEventListener('touchend', onTouchEnd, { passive: true });
-      canvasContainer.addEventListener('touchcancel', onTouchEnd, { passive: true });
-    }
-
-    window.addEventListener('resize', () => this.resizeCanvas());
+    // Direct cast (self / global)
+    this.executeCardEffect(this.localPlayerId, card, cardIndex, {});
   }
 
-  handleDirectionInput(dirStr) {
-    if (!this.gameRunning || this.gamePaused) return;
-    const p = this.players[this.myPlayerId];
-    if (!p || !p.isAlive) return;
-
-    let newDir = null;
-    if (dirStr === 'up' && p.dir.y === 0) newDir = { x: 0, y: -1 };
-    if (dirStr === 'down' && p.dir.y === 0) newDir = { x: 0, y: 1 };
-    if (dirStr === 'left' && p.dir.x === 0) newDir = { x: -1, y: 0 };
-    if (dirStr === 'right' && p.dir.x === 0) newDir = { x: 1, y: 0 };
-
-    if (newDir) {
-      p.nextDir = newDir;
-      // Tactile Haptic Vibration for Mobile Devices
-      if (navigator.vibrate) {
-        try { navigator.vibrate(10); } catch (err) {}
-      }
-      if (this.network.isOnline && !this.network.isHost) {
-        this.network.sendInputToHost(newDir);
+  // ------------------------------------------------------
+  // 5. MATCH INITIALIZATION & LOOP
+  // ------------------------------------------------------
+  initBoardData() {
+    this.grid = [];
+    for (let x = 0; x < BOARD_SIZE; x++) {
+      this.grid[x] = [];
+      for (let y = 0; y < BOARD_SIZE; y++) {
+        this.grid[x][y] = {
+          owner: 0,
+          blocked: false,
+          protectedUntil: 0
+        };
       }
     }
   }
 
-  resizeCanvas() {
-    const isMobile = window.innerWidth <= 900;
-    const maxDimension = isMobile 
-      ? Math.min(window.innerWidth - 16, Math.floor(window.innerHeight * 0.46), 440)
-      : Math.min(window.innerWidth - 20, 680);
-    const size = Math.max(300, maxDimension);
-    this.canvas.width = size;
-    this.canvas.height = size;
+  initDeck() {
+    this.mainDeck = [];
+    this.discardDeck = [];
+
+    CARD_DATABASE.forEach(template => {
+      for (let i = 0; i < template.qty; i++) {
+        this.mainDeck.push({ ...template });
+      }
+    });
+
+    this.shuffle(this.mainDeck);
+    sound.playShuffle();
   }
 
-  updateBestScoreDisplay() {
-    const el = document.getElementById('bestScoreText');
-    if (el) el.textContent = this.bestScore.toLocaleString();
-  }
-
-  setPause(paused) {
-    this.gamePaused = paused;
-    const modal = document.getElementById('pauseModal');
-    if (paused) {
-      modal.classList.remove('hidden');
-    } else {
-      modal.classList.add('hidden');
+  shuffle(deck) {
+    for (let i = deck.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [deck[i], deck[j]] = [deck[j], deck[i]];
     }
   }
 
-  showLobby() {
-    this.gameRunning = false;
-    clearInterval(this.timerInterval);
-    clearInterval(this.powerupInterval);
-    clearInterval(this.hostBroadcastInterval);
-    this.network.disconnect();
-
-    document.body.classList.remove('in-game');
-    document.getElementById('setupScreen').classList.remove('hidden');
-    document.getElementById('gameScreen').classList.add('hidden');
-    document.getElementById('gameHud').classList.add('hidden');
-    this.switchView('viewMain');
-    this.updateBestScoreDisplay();
-  }
-
-  // ----------------------------------------------------
-  // OFFLINE MATCH SETUP (VS 3 SMART BOTS)
-  // ----------------------------------------------------
   startOfflineMatch() {
-    this.myPlayerId = 0;
-    this.initBoardAndPlayers(false);
+    this.isMatchActive = true;
+    this.localPlayerId = 1;
+    const myName = document.getElementById('playerNameInput').value || 'ChromaKnight';
+
+    // Set up Players
+    this.players = [];
+    for (let i = 0; i < this.matchMode; i++) {
+      const prof = PLAYER_PROFILES[i];
+      const isHuman = (i === 0);
+      this.players.push({
+        id: prof.id,
+        name: isHuman ? myName : (i === 1 ? 'Bot Alpha' : (i === 2 ? 'Bot Beta' : 'Bot Gamma')),
+        color: prof.color,
+        glow: prof.glow,
+        spawn: prof.spawn,
+        isHuman: isHuman,
+        cellCount: 0,
+        eliminated: false,
+        handCards: [],
+        isBanned: false,
+        isLostControl: false,
+        disabledHandTurns: 0,
+        rivalImmunityTurns: 0,
+        immuneAgainst: 0,
+        controlledBy: 0,
+        skipNextDrawToDraw3: false
+      });
+    }
+
+    this.setupMatchCommon();
   }
 
-  // ----------------------------------------------------
-  // ONLINE HOST MATCH SETUP
-  // ----------------------------------------------------
   startOnlineMatchAsHost() {
-    this.myPlayerId = 0;
-    this.initBoardAndPlayers(true);
+    this.isMatchActive = true;
+    this.localPlayerId = 1;
+
+    // Use players in lobby, fill remaining with Bot if needed
+    const lobby = this.network.lobbyPlayers;
+    const count = Math.max(2, lobby.length);
+    this.players = [];
+
+    for (let i = 0; i < count; i++) {
+      const prof = PLAYER_PROFILES[i];
+      const lobPlayer = lobby[i];
+      this.players.push({
+        id: prof.id,
+        name: lobPlayer ? lobPlayer.name : `Bot ${i + 1}`,
+        color: prof.color,
+        glow: prof.glow,
+        spawn: prof.spawn,
+        isHuman: !!lobPlayer,
+        cellCount: 0,
+        eliminated: false,
+        handCards: [],
+        isBanned: false,
+        isLostControl: false,
+        disabledHandTurns: 0,
+        rivalImmunityTurns: 0,
+        immuneAgainst: 0,
+        controlledBy: 0,
+        skipNextDrawToDraw3: false
+      });
+    }
+
+    this.setupMatchCommon();
 
     // Broadcast Game Start to guests
     this.network.broadcastGameStart({
-      grid: this.grid,
+      matchMode: count,
       players: this.players,
-      powerups: this.powerups
+      board: this.grid,
+      currentTurnIndex: this.currentTurnIndex
     });
-
-    // Start 20fps Host State Broadcasting
-    clearInterval(this.hostBroadcastInterval);
-    this.hostBroadcastInterval = setInterval(() => {
-      if (this.gameRunning && !this.gamePaused) {
-        this.network.broadcastHostSnapshot({
-          players: this.players.map(p => ({
-            id: p.id,
-            x: p.x,
-            y: p.y,
-            dir: p.dir,
-            isAlive: p.isAlive,
-            trail: p.trail,
-            score: p.score,
-            kills: p.kills,
-            hasShield: p.hasShield,
-            speedBoostUntil: p.speedBoostUntil,
-            frozenUntil: p.frozenUntil
-          })),
-          powerups: this.powerups,
-          grid: this.grid
-        });
-      }
-    }, 50);
   }
 
-  // ----------------------------------------------------
-  // ONLINE GUEST MATCH SETUP
-  // ----------------------------------------------------
   startOnlineMatchAsGuest(matchData, myNetId) {
-    this.myPlayerId = myNetId;
-    this.resizeCanvas();
-    this.gameRunning = true;
-    this.gamePaused = false;
-    this.particles = [];
-    this.floatingTexts = [];
-    this.elapsedSeconds = 0;
-    this.gameStartTime = Date.now();
-
-    document.body.classList.add('in-game');
-    document.getElementById('setupScreen').classList.add('hidden');
-    document.getElementById('gameScreen').classList.remove('hidden');
-    document.getElementById('gameHud').classList.remove('hidden');
-    document.getElementById('pauseModal').classList.add('hidden');
-    document.getElementById('gameOverModal').classList.add('hidden');
-
-    if (window.innerWidth <= 900) {
-      const liveLb = document.getElementById('liveLeaderboard');
-      const btnToggleLb = document.getElementById('btnToggleLb');
-      if (liveLb) liveLb.classList.add('lb-collapsed');
-      if (btnToggleLb) btnToggleLb.textContent = '▸';
-    }
-
-    this.grid = matchData.grid;
+    this.isMatchActive = true;
+    this.localPlayerId = myNetId;
     this.players = matchData.players;
-    this.powerups = matchData.powerups;
-
-    // Reset camera to guest player position
-    const p = this.players[this.myPlayerId];
-    if (p) {
-      this.camera.x = p.x * this.CELL_SIZE - this.canvas.width / 2;
-      this.camera.y = p.y * this.CELL_SIZE - this.canvas.height / 2;
-    }
-
-    this.lastTime = performance.now();
-    requestAnimationFrame((t) => this.gameLoop(t));
+    this.initBoardData();
+    this.setupMatchCommon(true);
   }
 
-  applyHostSnapshot(snapshot) {
-    if (!this.gameRunning) return;
-    this.grid = snapshot.grid;
-    this.powerups = snapshot.powerups;
-
-    snapshot.players.forEach(sp => {
-      const p = this.players[sp.id];
-      if (p) {
-        p.x = sp.x;
-        p.y = sp.y;
-        p.dir = sp.dir;
-        p.isAlive = sp.isAlive;
-        p.trail = sp.trail;
-        p.score = sp.score;
-        p.kills = sp.kills;
-        p.hasShield = sp.hasShield;
-        p.speedBoostUntil = sp.speedBoostUntil;
-        p.frozenUntil = sp.frozenUntil;
-      }
-    });
-  }
-
-  // ----------------------------------------------------
-  // CORE MATCH INITIALIZATION (BOARD & SPAWN)
-  // ----------------------------------------------------
-  initBoardAndPlayers(isOnlineMatch) {
-    this.resizeCanvas();
-    this.gameRunning = true;
-    this.gamePaused = false;
-    this.particles = [];
-    this.floatingTexts = [];
-    this.powerups = [];
-    this.elapsedSeconds = 0;
-    this.gameStartTime = Date.now();
-
-    document.body.classList.add('in-game');
+  setupMatchCommon(isGuest = false) {
     document.getElementById('setupScreen').classList.add('hidden');
     document.getElementById('gameScreen').classList.remove('hidden');
     document.getElementById('gameHud').classList.remove('hidden');
-    document.getElementById('pauseModal').classList.add('hidden');
-    document.getElementById('gameOverModal').classList.add('hidden');
 
-    if (window.innerWidth <= 900) {
-      const liveLb = document.getElementById('liveLeaderboard');
-      const btnToggleLb = document.getElementById('btnToggleLb');
-      if (liveLb) liveLb.classList.add('lb-collapsed');
-      if (btnToggleLb) btnToggleLb.textContent = '▸';
-    }
+    if (!isGuest) {
+      this.initBoardData();
+      this.initDeck();
 
-    // Init Big 56x56 Grid
-    this.grid = [];
-    for (let r = 0; r < this.GRID_ROWS; r++) {
-      this.grid[r] = [];
-      for (let c = 0; c < this.GRID_COLS; c++) {
-        this.grid[r][c] = { owner: null, trail: null };
-      }
-    }
-
-    // Build 4 Player slots (Human/Host + other online players or bots)
-    this.players = [];
-
-    const spawnPositions = [
-      { r: 6, c: 6, dir: { x: 1, y: 0 } },
-      { r: 6, c: this.GRID_COLS - 10, dir: { x: 0, y: 1 } },
-      { r: this.GRID_ROWS - 10, c: 6, dir: { x: 0, y: -1 } },
-      { r: this.GRID_ROWS - 10, c: this.GRID_COLS - 10, dir: { x: -1, y: 0 } }
-    ];
-
-    if (isOnlineMatch) {
-      // ONLINE MODE: 100% human players, NO BOTS!
-      const netPlayers = this.network.lobbyPlayers;
-      netPlayers.forEach((netP, idx) => {
-        this.players.push({
-          id: idx,
-          isBot: false,
-          name: netP.name,
-          color: netP.color,
-          isAlive: true,
-          x: 0, y: 0,
-          prevX: 0, prevY: 0,
-          dir: { x: 0, y: 0 },
-          nextDir: { x: 0, y: 0 },
-          moveTimer: 0,
-          moveInterval: 0.12,
-          trail: [],
-          score: 0,
-          kills: 0,
-          speedBoostUntil: 0,
-          hasShield: false,
-          frozenUntil: 0
-        });
+      // Apply initial spawn points
+      this.players.forEach(p => {
+        this.setCellOwner(p.spawn.x, p.spawn.y, p.id);
       });
-    } else {
-      // Pure Offline vs 3 Bots
-      const availableColors = COLOR_PALETTE.map(c => c.hex).filter(hex => hex !== this.selectedColor);
-      shuffleArray(availableColors);
-      const botNames = [...BOT_NAMES];
-      shuffleArray(botNames);
 
-      this.players = [
-        {
-          id: 0,
-          isBot: false,
-          name: this.playerName,
-          color: this.selectedColor,
-          isAlive: true,
-          x: 0, y: 0,
-          prevX: 0, prevY: 0,
-          dir: { x: 0, y: 0 },
-          nextDir: { x: 0, y: 0 },
-          moveTimer: 0,
-          moveInterval: 0.12,
-          trail: [],
-          score: 0,
-          kills: 0,
-          speedBoostUntil: 0,
-          hasShield: false,
-          frozenUntil: 0
-        },
-        {
-          id: 1,
-          isBot: true,
-          name: botNames[0],
-          color: availableColors[0],
-          isAlive: true,
-          x: 0, y: 0,
-          prevX: 0, prevY: 0,
-          dir: { x: 0, y: 0 },
-          nextDir: { x: 0, y: 0 },
-          moveTimer: 0,
-          moveInterval: this.getBotSpeed(),
-          trail: [],
-          score: 0,
-          kills: 0,
-          speedBoostUntil: 0,
-          hasShield: false,
-          frozenUntil: 0,
-          stepsInTrail: 0
-        },
-        {
-          id: 2,
-          isBot: true,
-          name: botNames[1],
-          color: availableColors[1],
-          isAlive: true,
-          x: 0, y: 0,
-          prevX: 0, prevY: 0,
-          dir: { x: 0, y: 0 },
-          nextDir: { x: 0, y: 0 },
-          moveTimer: 0,
-          moveInterval: this.getBotSpeed(),
-          trail: [],
-          score: 0,
-          kills: 0,
-          speedBoostUntil: 0,
-          hasShield: false,
-          frozenUntil: 0,
-          stepsInTrail: 0
-        },
-        {
-          id: 3,
-          isBot: true,
-          name: botNames[2],
-          color: availableColors[2],
-          isAlive: true,
-          x: 0, y: 0,
-          prevX: 0, prevY: 0,
-          dir: { x: 0, y: 0 },
-          nextDir: { x: 0, y: 0 },
-          moveTimer: 0,
-          moveInterval: this.getBotSpeed(),
-          trail: [],
-          score: 0,
-          kills: 0,
-          speedBoostUntil: 0,
-          hasShield: false,
-          frozenUntil: 0,
-          stepsInTrail: 0
-        }
-      ];
+      // Deal 1 starting card to each player (bắt đầu với lá bài đầu tiên)
+      this.players.forEach(p => {
+        p.handCards = [];
+        p.usedCardsCount = 0;
+        this.drawCardForPlayer(p.id, false);
+        p.hasDrawnStartingHand = true;
+      });
+
+      this.currentTurnIndex = 0;
+      this.turnDirection = 1;
+      this.turnNumber = 1;
+      this.startTurn(0);
     }
 
-    // Assign spawn positions & 4x4 initial bases in the 4 quadrants
-    this.players.forEach((p, idx) => {
-      const pos = spawnPositions[idx];
-      p.x = pos.c + 1;
-      p.y = pos.r + 1;
-      p.prevX = p.x;
-      p.prevY = p.y;
-      p.dir = { ...pos.dir };
-      p.nextDir = { ...pos.dir };
+    sound.playBgm('match');
+    this.updateHUD();
+    this.renderHandCardsUI();
+  }
 
-      // Claim 4x4 base on the big board
-      for (let dr = 0; dr < 4; dr++) {
-        for (let dc = 0; dc < 4; dc++) {
-          this.grid[pos.r + dr][pos.c + dc].owner = p.id;
-        }
-      }
-    });
-
-    // Center camera on local player immediately
-    const myP = this.players[this.myPlayerId];
-    if (myP) {
-      this.camera.x = myP.x * this.CELL_SIZE - this.canvas.width / 2;
-      this.camera.y = myP.y * this.CELL_SIZE - this.canvas.height / 2;
-    }
-
-    // Start Match Timer
+  // ------------------------------------------------------
+  // 6. TURN & 30S TIMER MANAGEMENT
+  // ------------------------------------------------------
+  startTurn(turnIdx) {
     clearInterval(this.timerInterval);
+
+    // Active player for this turn
+    this.currentTurnIndex = turnIdx;
+    const activePlayer = this.getActivePlayer();
+    if (!activePlayer || activePlayer.eliminated) {
+      this.nextTurn();
+      return;
+    }
+
+    this.turnTimer = 30; // 30 seconds per turn
+    this.remainingMoves = 1;
+    this.pendingCardEffect = null;
+    this.selectedCardIndex = null;
+
+    if (activePlayer.controlledBy !== 0 && activePlayer.controlledBy !== activePlayer.id) {
+      this.setBanner(`LƯỢT CỦA: ${activePlayer.name}`, `${this.getPlayerById(activePlayer.controlledBy)?.name} ĐANG THAO TÚNG TÂM LÝ VÀ ĐI THAY!`);
+    } else {
+      this.setBanner(`LƯỢT CỦA: ${activePlayer.name}`, `Chọn 1 ô kề cận lãnh thổ để mở rộng (hoặc kéo thả thẻ bài).`);
+    }
+
+    // Show floating turn badge at top
+    this.showTurnPopup(`LƯỢT CỦA: ${activePlayer.name}`);
+    sound.playTick();
+
+    // Check Banned
+    if (activePlayer.isBanned) {
+      activePlayer.isBanned = false;
+      this.setBanner(`🚫 ${activePlayer.name} BỊ CẤM LƯỢT!`, `Lượt này bị bỏ qua.`);
+      setTimeout(() => this.nextTurn(), 1800);
+      return;
+    }
+
+    // Automatic Draw at turn start
+    let drawCount = 1;
+    if (activePlayer.skipNextDrawToDraw3) {
+      activePlayer.skipNextDrawToDraw3 = false;
+      activePlayer.disabledHandTurns = 1;
+      drawCount = 3;
+      this.setBanner(`⚡ ${activePlayer.name} KÍCH HOẠT LÙI MỘT BƯỚC!`, `Rút 3 lá nhưng bị khóa dùng thẻ bài ở lượt này!`);
+    } else if (activePlayer.hasDrawnStartingHand) {
+      // Đã có lá bài đầu tiên khi bắt đầu game, lượt đầu tiên không rút thêm để người chơi bắt đầu với lá bài đầu tiên đó
+      drawCount = 0;
+      activePlayer.hasDrawnStartingHand = false;
+    }
+
+    for (let i = 0; i < drawCount; i++) {
+      this.drawCardForPlayer(activePlayer.id, true);
+    }
+
+    // Check Exodia immediately upon drawing
+    if (this.checkExodiaWin(activePlayer.id)) return;
+
+    // Start 30s Countdown Timer
+    this.updateTimerDisplay();
     this.timerInterval = setInterval(() => {
-      if (!this.gamePaused && this.gameRunning) {
-        this.elapsedSeconds++;
-        const mins = String(Math.floor(this.elapsedSeconds / 60)).padStart(2, '0');
-        const secs = String(this.elapsedSeconds % 60).padStart(2, '0');
-        document.getElementById('hudTimer').textContent = `${mins}:${secs}`;
+      this.turnTimer--;
+      this.updateTimerDisplay();
+
+      if (this.turnTimer <= 5 && this.turnTimer > 0) {
+        sound.playTick();
+      }
+
+      if (this.turnTimer <= 0) {
+        clearInterval(this.timerInterval);
+        this.executeFallbackMove();
       }
     }, 1000);
 
-    // Powerup Spawner (6 items across the large world)
-    clearInterval(this.powerupInterval);
-    this.powerupInterval = setInterval(() => {
-      if (!this.gamePaused && this.gameRunning && this.powerups.length < 6) {
-        this.spawnPowerup();
-      }
-    }, 6000);
-
-    this.spawnPowerup();
-    this.spawnPowerup();
-    this.spawnPowerup();
-
-    this.lastTime = performance.now();
-    requestAnimationFrame((t) => this.gameLoop(t));
-  }
-
-  getBotSpeed() {
-    if (this.difficulty === 'easy') return 0.16;
-    if (this.difficulty === 'hard') return 0.11;
-    return 0.13;
-  }
-
-  // ----------------------------------------------------
-  // GAME LOOP & CAMERA TRACKING
-  // ----------------------------------------------------
-  gameLoop(currentTime) {
-    if (!this.gameRunning) return;
-
-    const dt = Math.min((currentTime - this.lastTime) / 1000, 0.1);
-    this.lastTime = currentTime;
-
-    if (!this.gamePaused) {
-      // If offline or online host, simulate game logic
-      if (!this.network.isOnline || this.network.isHost) {
-        this.update(dt);
-      }
-      this.updateCamera();
-    }
-    this.render();
-
-    requestAnimationFrame((t) => this.gameLoop(t));
-  }
-
-  updateCamera() {
-    const localPlayer = this.players[this.myPlayerId];
-    if (localPlayer) {
-      const worldX = localPlayer.x * this.CELL_SIZE + this.CELL_SIZE / 2;
-      const worldY = localPlayer.y * this.CELL_SIZE + this.CELL_SIZE / 2;
-
-      this.camera.targetX = worldX - this.canvas.width / 2;
-      this.camera.targetY = worldY - this.canvas.height / 2;
-
-      const maxX = this.GRID_COLS * this.CELL_SIZE - this.canvas.width;
-      const maxY = this.GRID_ROWS * this.CELL_SIZE - this.canvas.height;
-      this.camera.targetX = Math.max(0, Math.min(this.camera.targetX, Math.max(0, maxX)));
-      this.camera.targetY = Math.max(0, Math.min(this.camera.targetY, Math.max(0, maxY)));
-
-      // Smooth camera interpolation
-      this.camera.x += (this.camera.targetX - this.camera.x) * 0.16;
-      this.camera.y += (this.camera.targetY - this.camera.y) * 0.16;
-    }
-  }
-
-  update(dt) {
-    const now = Date.now();
-
-    this.players.forEach(p => {
-      if (!p.isAlive) return;
-      if (p.frozenUntil > now) return;
-
-      let interval = p.moveInterval;
-      if (p.speedBoostUntil > now) {
-        interval *= 0.65;
-      }
-
-      p.moveTimer += dt;
-      if (p.moveTimer >= interval) {
-        p.moveTimer -= interval;
-        this.stepPlayer(p);
-      }
-    });
-
-    // Update particles
-    for (let i = this.particles.length - 1; i >= 0; i--) {
-      const pt = this.particles[i];
-      pt.x += pt.vx;
-      pt.y += pt.vy;
-      pt.alpha -= pt.decay;
-      if (pt.alpha <= 0) this.particles.splice(i, 1);
-    }
-
-    // Update floating texts
-    for (let i = this.floatingTexts.length - 1; i >= 0; i--) {
-      const ft = this.floatingTexts[i];
-      ft.y -= ft.vy;
-      ft.alpha -= ft.decay;
-      if (ft.alpha <= 0) this.floatingTexts.splice(i, 1);
-    }
-
     this.updateHUD();
-    this.checkWinConditions();
+    this.renderHandCardsUI();
+
+    // If active player is BOT
+    if (!activePlayer.isHuman && (!this.network.isOnline || this.network.isHost)) {
+      setTimeout(() => this.executeBotTurn(), 1200);
+    }
+
+    if (this.network.isHost) {
+      this.broadcastSnapshot();
+    }
   }
 
-  // ----------------------------------------------------
-  // STEP PLAYER & COMBAT
-  // ----------------------------------------------------
-  stepPlayer(p) {
-    if (p.isBot) {
-      this.decideBotDirection(p);
+  nextTurn() {
+    clearInterval(this.timerInterval);
+
+    // End-of-turn counters decrease
+    const activePlayer = this.getActivePlayer();
+    if (activePlayer) {
+      if (activePlayer.disabledHandTurns > 0) activePlayer.disabledHandTurns--;
+      if (activePlayer.rivalImmunityTurns > 0) {
+        activePlayer.rivalImmunityTurns--;
+        if (activePlayer.rivalImmunityTurns === 0) activePlayer.immuneAgainst = 0;
+      }
+      activePlayer.controlledBy = 0;
+    }
+
+    // Advance turn index in current direction
+    const count = this.players.length;
+    let nextIdx = (this.currentTurnIndex + this.turnDirection + count) % count;
+
+    // Skip eliminated players
+    let loopGuard = 0;
+    while (this.players[nextIdx].eliminated && loopGuard < count) {
+      nextIdx = (nextIdx + this.turnDirection + count) % count;
+      loopGuard++;
+    }
+
+    this.turnNumber++;
+    this.startTurn(nextIdx);
+  }
+
+  getActivePlayer() {
+    return this.players[this.currentTurnIndex];
+  }
+
+  getPlayerById(id) {
+    return this.players.find(p => p.id === id);
+  }
+
+  // Fallback move when 30s timer runs out
+  executeFallbackMove() {
+    const activePlayer = this.getActivePlayer();
+    if (!activePlayer || activePlayer.eliminated) return;
+
+    this.setBanner(`⏱️ HẾT THỜI GIAN 30s!`, `Hệ thống tự động đi một nước cờ thay cho ${activePlayer.name}.`);
+
+    const validMoves = this.getValidMovesForPlayer(activePlayer.id);
+    if (validMoves.length > 0) {
+      const pick = validMoves[Math.floor(Math.random() * validMoves.length)];
+      this.applyCellMove(pick.x, pick.y, activePlayer.id);
     } else {
-      if (p.nextDir && (p.nextDir.x !== -p.dir.x || p.nextDir.y !== -p.dir.y)) {
-        p.dir = { ...p.nextDir };
-      }
+      this.nextTurn();
     }
-
-    const nextX = p.x + p.dir.x;
-    const nextY = p.y + p.dir.y;
-
-    // Check Wall Collisions
-    if (nextX < 0 || nextX >= this.GRID_COLS || nextY < 0 || nextY >= this.GRID_ROWS) {
-      if (p.isBot) {
-        this.redirectBotFromObstacle(p);
-        return;
-      } else {
-        if (this.grid[p.y][p.x].owner !== p.id) {
-          this.eliminatePlayer(p, 'Va phải rìa bản đồ khi chưa kịp về căn cứ!');
-          return;
-        } else {
-          return;
-        }
-      }
-    }
-
-    const targetCell = this.grid[nextY][nextX];
-
-    // Check Self-Trail Collision
-    if (targetCell.trail === p.id) {
-      if (p.hasShield) {
-        p.hasShield = false;
-        this.addFloatingText(p.x, p.y, '🛡️ KHIÊN ĐÃ VỠ!', '#4ECDC4');
-      } else {
-        this.eliminatePlayer(p, 'Tự đâm vào đuôi màu của chính mình!');
-        return;
-      }
-    }
-
-    // Check Rival-Trail Collision (CẮT ĐUÔI ĐỐI THỦ!)
-    if (targetCell.trail !== null && targetCell.trail !== p.id) {
-      const victimId = targetCell.trail;
-      const victim = this.players[victimId];
-      if (victim && victim.isAlive) {
-        if (victim.hasShield) {
-          victim.hasShield = false;
-          this.addFloatingText(victim.x, victim.y, '🛡️ KHIÊN CỨU MẠNG!', '#4ECDC4');
-        } else {
-          p.kills++;
-          p.score += 300;
-          this.addFloatingText(nextX, nextY, `💥 +300 DIỆT ${victim.name.toUpperCase()}!`, p.color);
-          this.createExplosionParticles(nextX, nextY, victim.color);
-          window.sounds.playKill();
-          this.eliminatePlayer(victim, `Bị ${p.name} cắt đuôi hạ gục!`);
-        }
-      }
-    }
-
-    p.prevX = p.x;
-    p.prevY = p.y;
-    p.x = nextX;
-    p.y = nextY;
-
-    if (p.id === this.myPlayerId) {
-      window.sounds.playTurn();
-    }
-
-    // Draw trail or Capture territory
-    if (targetCell.owner !== p.id) {
-      p.trail.push({ x: p.x, y: p.y });
-      targetCell.trail = p.id;
-      if (p.isBot) p.stepsInTrail++;
-    } else {
-      if (p.trail.length > 0) {
-        this.captureTerritory(p);
-        p.trail = [];
-        if (p.isBot) p.stepsInTrail = 0;
-      }
-    }
-
-    this.checkPowerupPickup(p);
   }
 
-  // ----------------------------------------------------
-  // BOT AI (ADAPTED FOR BIG BOARD)
-  // ----------------------------------------------------
-  decideBotDirection(bot) {
-    const isOutside = this.grid[bot.y][bot.x].owner !== bot.id;
-    const maxSteps = this.difficulty === 'easy' ? 5 : (this.difficulty === 'hard' ? 10 : 7);
+  // ------------------------------------------------------
+  // 7. BOARD LOGIC & FLOOD FILL ENCLOSURE (COLOR_SPILL)
+  // ------------------------------------------------------
+  setCellOwner(x, y, playerId) {
+    if (x < 0 || x >= BOARD_SIZE || y < 0 || y >= BOARD_SIZE) return;
+    const oldOwner = this.grid[x][y].owner;
+    if (oldOwner === playerId) return;
 
-    // 1. Return home if ventured too far
-    if (isOutside && (bot.stepsInTrail >= maxSteps || this.isRivalNearMyTrail(bot))) {
-      const homeDir = this.findDirectionToNearestHome(bot);
-      if (homeDir && this.isValidBotMove(bot, homeDir)) {
-        bot.dir = homeDir;
-        return;
-      }
+    // Check if cell is protected by Immortal Line
+    if (this.grid[x][y].protectedUntil >= this.turnNumber && oldOwner !== 0 && oldOwner !== playerId) {
+      return; // Protected
     }
 
-    // 2. Hunt enemy trails within 6 tiles
-    const huntDir = this.findDirectionToHuntEnemyTrail(bot);
-    if (huntDir && this.isValidBotMove(bot, huntDir)) {
-      bot.dir = huntDir;
-      return;
-    }
+    this.grid[x][y].owner = playerId;
 
-    // 3. Seek nearby powerup within 8 tiles
-    const pUpDir = this.findDirectionToNearestPowerup(bot);
-    if (pUpDir && this.isValidBotMove(bot, pUpDir)) {
-      bot.dir = pUpDir;
-      return;
-    }
+    this.recalculateCellCounts();
+    this.spawnCaptureParticles(x, y, playerId);
+  }
 
-    // 4. Default: Smooth expansion wandering
-    if (!this.isValidBotMove(bot, bot.dir) || Math.random() < 0.12) {
-      const possibleDirs = [
-        { x: 0, y: -1 }, { x: 0, y: 1 }, { x: -1, y: 0 }, { x: 1, y: 0 }
-      ].filter(d => this.isValidBotMove(bot, d) && !(d.x === -bot.dir.x && d.y === -bot.dir.y));
-
-      if (possibleDirs.length > 0) {
-        bot.dir = possibleDirs[Math.floor(Math.random() * possibleDirs.length)];
+  recalculateCellCounts() {
+    this.players.forEach(p => p.cellCount = 0);
+    for (let x = 0; x < BOARD_SIZE; x++) {
+      for (let y = 0; y < BOARD_SIZE; y++) {
+        const owner = this.grid[x][y].owner;
+        const p = this.getPlayerById(owner);
+        if (p) p.cellCount++;
       }
     }
   }
 
-  isValidBotMove(bot, dir) {
-    const nx = bot.x + dir.x;
-    const ny = bot.y + dir.y;
-    if (nx < 0 || nx >= this.GRID_COLS || ny < 0 || ny >= this.GRID_ROWS) return false;
-    if (this.grid[ny][nx].trail === bot.id) return false;
-    return true;
-  }
+  isAdjacentToPlayer(x, y, playerId) {
+    // 8-directional adjacency (Orthogonal + Diagonal)
+    const dx = [1, -1, 0, 0, 1, 1, -1, -1];
+    const dy = [0, 0, 1, -1, 1, -1, 1, -1];
 
-  redirectBotFromObstacle(bot) {
-    const possible = [
-      { x: 0, y: -1 }, { x: 0, y: 1 }, { x: -1, y: 0 }, { x: 1, y: 0 }
-    ].filter(d => this.isValidBotMove(bot, d));
-    if (possible.length > 0) {
-      bot.dir = possible[Math.floor(Math.random() * possible.length)];
-    }
-  }
-
-  isRivalNearMyTrail(bot) {
-    if (bot.trail.length === 0) return false;
-    for (let p of this.players) {
-      if (p.id !== bot.id && p.isAlive) {
-        for (let pt of bot.trail) {
-          const dist = Math.abs(p.x - pt.x) + Math.abs(p.y - pt.y);
-          if (dist <= 4) return true;
-        }
+    for (let i = 0; i < 8; i++) {
+      const nx = x + dx[i];
+      const ny = y + dy[i];
+      if (nx >= 0 && nx < BOARD_SIZE && ny >= 0 && ny < BOARD_SIZE) {
+        if (this.grid[nx][ny].owner === playerId) return true;
       }
     }
     return false;
   }
 
-  findDirectionToNearestHome(bot) {
-    let bestDist = Infinity;
-    let target = null;
-    // Sample search for nearest home cell
-    for (let r = 0; r < this.GRID_ROWS; r += 2) {
-      for (let c = 0; c < this.GRID_COLS; c += 2) {
-        if (this.grid[r][c].owner === bot.id) {
-          const dist = Math.abs(bot.x - c) + Math.abs(bot.y - r);
-          if (dist < bestDist) {
-            bestDist = dist;
-            target = { x: c, y: r };
+  getValidMovesForPlayer(playerId) {
+    const valid = [];
+    for (let x = 0; x < BOARD_SIZE; x++) {
+      for (let y = 0; y < BOARD_SIZE; y++) {
+        const cell = this.grid[x][y];
+        if (cell.owner !== playerId && !cell.blocked) {
+          if (cell.protectedUntil >= this.turnNumber) continue;
+          if (this.isAdjacentToPlayer(x, y, playerId)) {
+            valid.push({ x, y });
           }
         }
       }
     }
-    if (!target) return null;
-    return this.getStepTowards(bot.x, bot.y, target.x, target.y);
+    return valid;
   }
 
-  findDirectionToHuntEnemyTrail(bot) {
-    let closestDist = 7;
-    let target = null;
-    for (let p of this.players) {
-      if (p.id !== bot.id && p.isAlive && p.trail.length > 0) {
-        for (let pt of p.trail) {
-          const dist = Math.abs(bot.x - pt.x) + Math.abs(bot.y - pt.y);
-          if (dist < closestDist) {
-            closestDist = dist;
-            target = pt;
-          }
-        }
-      }
+  // Making 1 move immediately finishes turn as requested!
+  applyCellMove(x, y, playerId) {
+    if (this.remainingMoves <= 0) return false;
+
+    this.setCellOwner(x, y, playerId);
+    this.remainingMoves--;
+    sound.playClick();
+
+    // Check and apply enclosure captures
+    const capturedCount = this.checkAndApplyCaptures(playerId);
+    if (capturedCount > 0) {
+      sound.playCapture();
+      const p = this.getPlayerById(playerId);
+      this.setBanner(`🌊 BAO VÂY THÀNH CÔNG!`, `${p.name} đã khép kín và nuốt trọn ${capturedCount} ô đất!`);
     }
-    if (!target) return null;
-    return this.getStepTowards(bot.x, bot.y, target.x, target.y);
+
+    // Win / Lose condition checks
+    if (this.checkWinConditions(playerId)) return true;
+
+    // Automatically end turn after 1 move!
+    setTimeout(() => {
+      this.nextTurn();
+    }, 450);
+
+    return true;
   }
 
-  findDirectionToNearestPowerup(bot) {
-    if (this.powerups.length === 0) return null;
-    let bestDist = 8;
-    let target = null;
-    for (let pu of this.powerups) {
-      const dist = Math.abs(bot.x - pu.x) + Math.abs(bot.y - pu.y);
-      if (dist < bestDist) {
-        bestDist = dist;
-        target = pu;
-      }
-    }
-    if (!target) return null;
-    return this.getStepTowards(bot.x, bot.y, target.x, target.y);
-  }
-
-  getStepTowards(fromX, fromY, toX, toY) {
-    const dx = toX - fromX;
-    const dy = toY - fromY;
-    if (Math.abs(dx) > Math.abs(dy)) {
-      return { x: Math.sign(dx), y: 0 };
-    } else if (dy !== 0) {
-      return { x: 0, y: Math.sign(dy) };
-    }
-    return null;
-  }
-
-  // ----------------------------------------------------
-  // TERRITORY FLOOD-FILL CAPTURE
-  // ----------------------------------------------------
-  captureTerritory(player) {
-    player.trail.forEach(pt => {
-      this.grid[pt.y][pt.x].owner = player.id;
-      this.grid[pt.y][pt.x].trail = null;
-    });
-
-    const H = this.GRID_ROWS;
-    const W = this.GRID_COLS;
+  // Exact FloodFill algorithm from Color_Spill Unity GameController.cs
+  checkAndApplyCaptures(checkingPlayerId) {
     const visited = [];
-    for (let r = 0; r < H + 2; r++) {
-      visited[r] = new Uint8Array(W + 2);
+    for (let x = 0; x < BOARD_SIZE; x++) {
+      visited[x] = new Array(BOARD_SIZE).fill(false);
     }
 
-    const queue = [{ r: 0, c: 0 }];
-    visited[0][0] = 1;
+    let totalCaptured = 0;
+
+    for (let x = 0; x < BOARD_SIZE; x++) {
+      for (let y = 0; y < BOARD_SIZE; y++) {
+        const cell = this.grid[x][y];
+
+        if (cell.owner !== checkingPlayerId && !visited[x][y]) {
+          const group = [];
+          let isEnclosed = true;
+
+          this.floodFillCheck(x, y, visited, group, checkingPlayerId, () => {
+            isEnclosed = false;
+          });
+
+          if (isEnclosed && group.length > 0) {
+            group.forEach(pos => {
+              if (!this.grid[pos.x][pos.y].blocked) {
+                this.setCellOwner(pos.x, pos.y, checkingPlayerId);
+                totalCaptured++;
+              }
+            });
+          }
+        }
+      }
+    }
+
+    return totalCaptured;
+  }
+
+  floodFillCheck(startX, startY, visited, group, checkingPlayerId, onTouchBoundary) {
+    const queue = [{ x: startX, y: startY }];
+    visited[startX][startY] = true;
+
+    const dx = [1, -1, 0, 0];
+    const dy = [0, 0, 1, -1];
 
     while (queue.length > 0) {
-      const { r, c } = queue.pop();
-      const neighbors = [
-        { r: r - 1, c: c },
-        { r: r + 1, c: c },
-        { r: r, c: c - 1 },
-        { r: r, c: c + 1 }
-      ];
+      const curr = queue.shift();
+      group.push(curr);
 
-      for (let n of neighbors) {
-        if (n.r >= 0 && n.r < H + 2 && n.c >= 0 && n.c < W + 2) {
-          if (!visited[n.r][n.c]) {
-            let isBlocked = false;
-            if (n.r >= 1 && n.r <= H && n.c >= 1 && n.c <= W) {
-              const gr = n.r - 1;
-              const gc = n.c - 1;
-              if (this.grid[gr][gc].owner === player.id) {
-                isBlocked = true;
-              }
-            }
-            if (!isBlocked) {
-              visited[n.r][n.c] = 1;
-              queue.push(n);
+      if (curr.x === 0 || curr.x === BOARD_SIZE - 1 || curr.y === 0 || curr.y === BOARD_SIZE - 1) {
+        onTouchBoundary();
+      }
+
+      for (let i = 0; i < 4; i++) {
+        const nx = curr.x + dx[i];
+        const ny = curr.y + dy[i];
+
+        if (nx >= 0 && nx < BOARD_SIZE && ny >= 0 && ny < BOARD_SIZE) {
+          const neighbor = this.grid[nx][ny];
+
+          if (neighbor.owner !== checkingPlayerId || neighbor.blocked) {
+            if (!visited[nx][ny]) {
+              visited[nx][ny] = true;
+              queue.push({ x: nx, y: ny });
             }
           }
         }
       }
     }
-
-    let capturedCount = 0;
-    for (let r = 0; r < H; r++) {
-      for (let c = 0; c < W; c++) {
-        if (!visited[r + 1][c + 1]) {
-          if (this.grid[r][c].owner !== player.id) {
-            this.grid[r][c].owner = player.id;
-            this.grid[r][c].trail = null;
-            capturedCount++;
-
-            if (Math.random() < 0.25) {
-              this.createTileParticles(c, r, player.color);
-            }
-          }
-        }
-      }
-    }
-
-    const totalAward = player.trail.length + capturedCount;
-    player.score += totalAward * 10;
-
-    if (player.id === this.myPlayerId) {
-      window.sounds.playCapture(totalAward);
-      if (totalAward > 10) {
-        this.addFloatingText(player.x, player.y, `+${totalAward * 10} CHIẾM ĐÓNG!`, player.color);
-      }
-    }
   }
 
-  // ----------------------------------------------------
-  // POWERUPS & EFFECTS
-  // ----------------------------------------------------
-  spawnPowerup() {
-    let attempts = 0;
-    while (attempts < 50) {
-      const x = Math.floor(Math.random() * this.GRID_COLS);
-      const y = Math.floor(Math.random() * this.GRID_ROWS);
-      if (this.grid[y][x].trail === null && !this.powerups.some(p => p.x === x && p.y === y)) {
-        const puDef = POWERUP_TYPES[Math.floor(Math.random() * POWERUP_TYPES.length)];
-        this.powerups.push({
-          x, y,
-          type: puDef.type,
-          icon: puDef.icon,
-          name: puDef.name,
-          color: puDef.color,
-          createdAt: Date.now()
-        });
-        break;
+  // ------------------------------------------------------
+  // 8. WIN & LOSE CONDITIONS
+  // ------------------------------------------------------
+  checkWinConditions(lastMovedPlayerId) {
+    this.recalculateCellCounts();
+
+    // 1. Victory by 70% territory
+    const p = this.getPlayerById(lastMovedPlayerId);
+    if (p && (p.cellCount / this.totalCells) >= 0.70) {
+      this.finishMatch(p.id, `${p.name} đã thống trị hơn 70% lãnh thổ bản đồ!`);
+      return true;
+    }
+
+    // 2. Eliminate players with 0 cells
+    this.players.forEach(pl => {
+      if (pl.cellCount === 0 && !pl.eliminated) {
+        pl.eliminated = true;
+        this.setBanner(`💀 ${pl.name} ĐÃ BỊ LOẠI!`, `Toàn bộ ô cờ đã bị kẻ địch nuốt trọn.`);
       }
-      attempts++;
-    }
-  }
-
-  checkPowerupPickup(player) {
-    for (let i = this.powerups.length - 1; i >= 0; i--) {
-      const pu = this.powerups[i];
-      if (pu.x === player.x && pu.y === player.y) {
-        this.applyPowerup(player, pu);
-        this.powerups.splice(i, 1);
-        break;
-      }
-    }
-  }
-
-  applyPowerup(player, pu) {
-    const now = Date.now();
-    player.score += 50;
-
-    if (player.id === this.myPlayerId) {
-      window.sounds.playPowerup();
-      this.addFloatingText(player.x, player.y, `${pu.icon} ${pu.name.toUpperCase()}!`, pu.color);
-    }
-
-    switch (pu.type) {
-      case 'speed':
-        player.speedBoostUntil = now + 6000;
-        break;
-      case 'shield':
-        player.hasShield = true;
-        break;
-      case 'bomb':
-        for (let dr = -2; dr <= 2; dr++) {
-          for (let dc = -2; dc <= 2; dc++) {
-            const nr = player.y + dr;
-            const nc = player.x + dc;
-            if (nr >= 0 && nr < this.GRID_ROWS && nc >= 0 && nc < this.GRID_COLS) {
-              this.grid[nr][nc].owner = player.id;
-              this.grid[nr][nc].trail = null;
-              if (Math.random() < 0.3) this.createTileParticles(nc, nr, player.color);
-            }
-          }
-        }
-        break;
-      case 'freeze':
-        this.players.forEach(p => {
-          if (p.id !== player.id) p.frozenUntil = now + 4000;
-        });
-        break;
-    }
-  }
-
-  // ----------------------------------------------------
-  // ELIMINATION & END GAME
-  // ----------------------------------------------------
-  eliminatePlayer(victim, reason) {
-    victim.isAlive = false;
-
-    victim.trail.forEach(pt => {
-      this.grid[pt.y][pt.x].trail = null;
     });
-    victim.trail = [];
 
-    for (let r = 0; r < this.GRID_ROWS; r++) {
-      for (let c = 0; c < this.GRID_COLS; c++) {
-        if (this.grid[r][c].owner === victim.id) {
-          this.grid[r][c].owner = null;
-        }
-        if (this.grid[r][c].trail === victim.id) {
-          this.grid[r][c].trail = null;
-        }
+    const alive = this.players.filter(pl => !pl.eliminated);
+    if (alive.length === 1) {
+      this.finishMatch(alive[0].id, `${alive[0].name} là đấu thủ duy nhất còn sống sót trên sàn đấu!`);
+      return true;
+    }
+
+    // 3. Board full of cells
+    let emptyCells = 0;
+    for (let x = 0; x < BOARD_SIZE; x++) {
+      for (let y = 0; y < BOARD_SIZE; y++) {
+        if (this.grid[x][y].owner === 0 && !this.grid[x][y].blocked) emptyCells++;
       }
     }
 
-    if (victim.id === this.myPlayerId) {
-      window.sounds.playDeath();
-      this.finishMatch(false, reason);
+    if (emptyCells === 0) {
+      const sorted = [...this.players].sort((a, b) => b.cellCount - a.cellCount);
+      this.finishMatch(sorted[0].id, `Bàn cờ đã kín! ${sorted[0].name} dẫn đầu với ${sorted[0].cellCount} ô!`);
+      return true;
     }
+
+    return false;
   }
 
-  checkWinConditions() {
-    const totalTiles = this.GRID_COLS * this.GRID_ROWS;
-    const myP = this.players[this.myPlayerId];
-    if (!myP || !myP.isAlive) return;
+  checkExodiaWin(playerId) {
+    const p = this.getPlayerById(playerId);
+    if (!p) return false;
 
-    const counts = {};
-    this.players.forEach(p => { counts[p.id] = 0; });
-    for (let r = 0; r < this.GRID_ROWS; r++) {
-      for (let c = 0; c < this.GRID_COLS; c++) {
-        const o = this.grid[r][c].owner;
-        if (o !== null && counts[o] !== undefined) counts[o]++;
-      }
+    const shards = ['Shard1', 'Shard2', 'Shard3', 'Shard4', 'Shard5'];
+    const hasAll = shards.every(sid => p.handCards.some(c => c.id === sid));
+
+    if (hasAll) {
+      this.finishMatch(p.id, `👑 THẦN BÀI TỐI THƯỢNG! ${p.name} đã tập hợp đủ cả 5 Mảnh Vỡ Cổ Đại (Exodia)!`);
+      return true;
     }
-
-    const myPct = (((counts[this.myPlayerId] || 0) / totalTiles) * 100);
-    const livingRivals = this.players.filter(p => p.id !== this.myPlayerId && p.isAlive).length;
-
-    if (myPct >= 35.0) {
-      window.sounds.playWin();
-      this.finishMatch(true, `Chiến thắng vang dội! Bạn đã làm chủ ${myPct.toFixed(1)}% đại đấu trường!`);
-    } else if (this.players.length > 1 && livingRivals === 0) {
-      window.sounds.playWin();
-      this.finishMatch(true, 'Toàn bộ đối thủ đã bị quét sạch!');
-    }
+    return false;
   }
 
-  finishMatch(isVictory, subtitle) {
-    this.gameRunning = false;
+  finishMatch(winnerId, subtitle) {
+    this.isMatchActive = false;
     clearInterval(this.timerInterval);
-    clearInterval(this.powerupInterval);
-    clearInterval(this.hostBroadcastInterval);
 
-    if (this.network.isOnline && this.network.isHost) {
-      this.network.broadcastGameOver({ isVictory, subtitle });
-    }
+    const winner = this.getPlayerById(winnerId);
+    const isMe = (winnerId === this.localPlayerId);
 
-    const myP = this.players[this.myPlayerId] || { score: 0, kills: 0 };
-    const totalTiles = this.GRID_COLS * this.GRID_ROWS;
-    let myTiles = 0;
-    for (let r = 0; r < this.GRID_ROWS; r++) {
-      for (let c = 0; c < this.GRID_COLS; c++) {
-        if (this.grid[r][c].owner === this.myPlayerId) myTiles++;
-      }
-    }
-    const pct = ((myTiles / totalTiles) * 100).toFixed(1);
-
-    if (myP.score > this.bestScore) {
-      this.bestScore = myP.score;
-      localStorage.setItem('cs_best_score', this.bestScore.toString());
-      this.updateBestScoreDisplay();
-    }
-
-    const modal = document.getElementById('gameOverModal');
-    const badge = document.getElementById('goBadge');
-    const title = document.getElementById('goTitle');
-    const sub = document.getElementById('goSubtitle');
-
-    if (isVictory) {
-      badge.textContent = '🏆 CHIẾN THẮNG QUÁN QUÂN';
-      badge.style.color = '#4ECDC4';
-      badge.style.borderColor = 'rgba(78, 205, 196, 0.4)';
-      title.textContent = 'BÁ CHỦ MÀU SẮC!';
-      title.className = 'go-title text-teal';
+    if (isMe) {
+      sound.playWin();
     } else {
-      badge.textContent = '💀 TỬ TRẬN';
-      badge.style.color = '#FF6B6B';
-      badge.style.borderColor = 'rgba(255, 107, 107, 0.4)';
-      title.textContent = 'TRẬN CHIẾN KẾT THÚC';
-      title.className = 'go-title text-coral';
+      sound.playLose();
     }
 
-    sub.textContent = subtitle;
-    document.getElementById('goTerritory').textContent = `${pct}%`;
-    document.getElementById('goScore').textContent = myP.score.toLocaleString();
-    document.getElementById('goKills').textContent = myP.kills;
-    document.getElementById('goTime').textContent = document.getElementById('hudTimer').textContent;
+    // Show Game Over Modal
+    document.getElementById('gameOverTitle').innerText = isMe ? 'CHIẾN THẮNG HUY HOÀNG!' : `${winner.name} THẮNG TRẬN!`;
+    document.getElementById('gameOverSub').innerText = subtitle;
+    document.getElementById('gameOverIcon').innerText = isMe ? '🏆' : '💀';
 
-    modal.classList.remove('hidden');
+    const statsEl = document.getElementById('gameOverStats');
+    statsEl.innerHTML = this.players.map(pl => `
+      <div class="game-over-stat-row" style="color: ${pl.color}">
+        <span>${pl.name} ${pl.id === winnerId ? '👑' : ''}:</span>
+        <span>${pl.cellCount} ô (${((pl.cellCount / this.totalCells) * 100).toFixed(1)}%)</span>
+      </div>
+    `).join('');
+
+    document.getElementById('gameOverModal').classList.remove('hidden');
+
+    if (this.network.isHost) {
+      this.network.broadcastGameOver({ winnerId, subtitle });
+    }
   }
 
-  // ----------------------------------------------------
-  // HUD & LEADERBOARD
-  // ----------------------------------------------------
-  updateHUD() {
-    const totalTiles = this.GRID_COLS * this.GRID_ROWS;
-    const tileCounts = {};
-    this.players.forEach(p => { tileCounts[p.id] = 0; });
-    for (let r = 0; r < this.GRID_ROWS; r++) {
-      for (let c = 0; c < this.GRID_COLS; c++) {
-        const o = this.grid[r][c].owner;
-        if (o !== null && tileCounts[o] !== undefined) tileCounts[o]++;
+  exitMatchToLobby() {
+    this.isMatchActive = false;
+    clearInterval(this.timerInterval);
+    sound.stopBgm();
+
+    document.getElementById('gameScreen').classList.add('hidden');
+    document.getElementById('gameHud').classList.add('hidden');
+    document.getElementById('setupScreen').classList.remove('hidden');
+    this.showView('viewMain');
+  }
+
+  // ------------------------------------------------------
+  // 9. CARD DRAW & TRASH DISCARD
+  // ------------------------------------------------------
+  drawCardForPlayer(playerId, playSound = true) {
+    const p = this.getPlayerById(playerId);
+    if (!p || p.handCards.length >= 5) return null;
+
+    if (this.mainDeck.length === 0) {
+      if (this.discardDeck.length > 0) {
+        this.mainDeck = [...this.discardDeck];
+        this.discardDeck = [];
+        this.shuffle(this.mainDeck);
+        sound.playShuffle();
+      } else {
+        return null;
       }
     }
 
-    const myP = this.players[this.myPlayerId] || { score: 0, kills: 0 };
-    document.getElementById('hudScore').textContent = myP.score;
-    document.getElementById('hudKills').textContent = myP.kills;
+    const card = this.mainDeck.shift();
+    p.handCards.push(card);
 
-    const myPct = (((tileCounts[this.myPlayerId] || 0) / totalTiles) * 100).toFixed(1);
-    document.getElementById('playerTerritoryPct').textContent = `${myPct}%`;
-
-    const barEl = document.getElementById('territoryBar');
-    barEl.innerHTML = '';
-    this.players.forEach(p => {
-      const pct = ((tileCounts[p.id] || 0) / totalTiles) * 100;
-      if (pct > 0.4) {
-        const seg = document.createElement('div');
-        seg.className = 't-seg';
-        seg.style.width = `${pct}%`;
-        seg.style.backgroundColor = p.color;
-        barEl.appendChild(seg);
-      }
-    });
-
-    const now = Date.now();
-    const badgesOverlay = document.getElementById('activePowerups');
-    badgesOverlay.innerHTML = '';
-    if (myP.speedBoostUntil > now) {
-      badgesOverlay.appendChild(createBadge('⚡', 'Tốc độ', '#FFE66D'));
-    }
-    if (myP.hasShield) {
-      badgesOverlay.appendChild(createBadge('🛡️', 'Khiên', '#4ECDC4'));
+    if (playSound && playerId === this.localPlayerId) {
+      sound.playDraw();
     }
 
-    const sorted = [...this.players].map(p => ({
-      ...p,
-      pct: ((tileCounts[p.id] / totalTiles) * 100).toFixed(1)
-    })).sort((a, b) => parseFloat(b.pct) - parseFloat(a.pct));
+    if (this.checkExodiaWin(playerId)) return card;
 
-    const myRankIdx = sorted.findIndex(p => p.id === this.myPlayerId);
-    const lbMyRankPill = document.getElementById('lbMyRankPill');
-    if (lbMyRankPill && myRankIdx !== -1) {
-      lbMyRankPill.textContent = `#${myRankIdx + 1} (${sorted[myRankIdx].pct}%)`;
+    this.updateHUD();
+    this.renderHandCardsUI();
+    return card;
+  }
+
+  discardCard(playerId, cardIndex) {
+    const p = this.getPlayerById(playerId);
+    if (!p || cardIndex < 0 || cardIndex >= p.handCards.length) return;
+
+    const removed = p.handCards.splice(cardIndex, 1)[0];
+    this.discardDeck.push(removed);
+
+    sound.playCard();
+    this.updateHUD();
+    this.renderHandCardsUI();
+  }
+
+  openTargetSelectModal(card, cardIndex) {
+    this.pendingCardEffect = { playerId: this.localPlayerId, card, cardIndex };
+    const modalEl = document.getElementById('targetSelectModal');
+    const gridEl = document.getElementById('targetOptionsGrid');
+    const subTitleEl = document.getElementById('targetSelectSubtitle');
+    if (!gridEl || !modalEl) return;
+
+    gridEl.innerHTML = '';
+    if (subTitleEl) {
+      subTitleEl.innerText = `Chọn 1 đối thủ bạn muốn nhắm đến khi thi triển "${card.name}":`;
     }
 
-    const lbList = document.getElementById('lbList');
-    lbList.innerHTML = '';
-    sorted.forEach((item, rank) => {
-      const li = document.createElement('li');
-      li.className = `lb-item ${item.id === this.myPlayerId ? 'is-player' : ''} ${!item.isAlive ? 'lb-dead' : ''}`;
-      li.innerHTML = `
-        <div class="lb-left">
-          <span class="lb-rank">#${rank + 1}</span>
-          <span class="lb-color-dot" style="background-color: ${item.color};"></span>
-          <span class="lb-name">${escapeHTML(item.name)} ${item.id === this.myPlayerId ? '(BẠN)' : ''}</span>
+    const opponents = this.players.filter(op => op.id !== this.localPlayerId && !op.eliminated);
+    if (opponents.length === 0) {
+      alert('Không còn đối thủ nào khả dụng trên sàn đấu!');
+      return;
+    }
+
+    opponents.forEach(op => {
+      const hasShield = op.handCards.some(c => c.id === 'Shield');
+      const hasCounter = op.handCards.some(c => c.id === 'Counter');
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'target-card-btn';
+      btn.innerHTML = `
+        <div class="target-card-avatar" style="background: ${op.color}; box-shadow: 0 0 10px ${op.color};"></div>
+        <div class="target-card-details">
+          <div class="target-card-name">${op.name}</div>
+          <div class="target-card-meta">🏰 ${op.cellCount} ô • 🃏 ${op.handCards.length} thẻ trên tay</div>
+          <div class="target-card-tags">
+            ${hasShield ? '<span class="buff-tag">🛡️ Khiên</span>' : ''}
+            ${hasCounter ? '<span class="buff-tag">⚔️ Phản Đòn</span>' : ''}
+          </div>
         </div>
-        <span class="lb-pct">${item.pct}%</span>
+        <div class="target-card-select-icon">🎯</div>
       `;
-      lbList.appendChild(li);
-    });
-  }
-
-  // ----------------------------------------------------
-  // PARTICLES & COMBAT FLOATING TEXT
-  // ----------------------------------------------------
-  createTileParticles(x, y, color) {
-    const px = x * this.CELL_SIZE + this.CELL_SIZE / 2;
-    const py = y * this.CELL_SIZE + this.CELL_SIZE / 2;
-    for (let i = 0; i < 3; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const spd = Math.random() * 2 + 1;
-      this.particles.push({
-        x: px, y: py,
-        vx: Math.cos(angle) * spd,
-        vy: Math.sin(angle) * spd,
-        size: Math.random() * 3 + 2,
-        color: color,
-        alpha: 1,
-        decay: 0.04
+      btn.addEventListener('click', () => {
+        sound.playClick();
+        modalEl.classList.add('hidden');
+        this.pendingCardEffect = null;
+        this.executeCardEffect(this.localPlayerId, card, cardIndex, { targetPlayerId: op.id });
       });
-    }
-  }
-
-  createExplosionParticles(x, y, color) {
-    const px = x * this.CELL_SIZE + this.CELL_SIZE / 2;
-    const py = y * this.CELL_SIZE + this.CELL_SIZE / 2;
-    for (let i = 0; i < 20; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const spd = Math.random() * 4 + 2;
-      this.particles.push({
-        x: px, y: py,
-        vx: Math.cos(angle) * spd,
-        vy: Math.sin(angle) * spd,
-        size: Math.random() * 4 + 3,
-        color: color,
-        alpha: 1,
-        decay: 0.03
-      });
-    }
-  }
-
-  addFloatingText(x, y, text, color) {
-    const px = x * this.CELL_SIZE + this.CELL_SIZE / 2;
-    const py = y * this.CELL_SIZE;
-    this.floatingTexts.push({
-      x: px, y: py,
-      text: text,
-      color: color,
-      vy: 1.2,
-      alpha: 1,
-      decay: 0.02
+      gridEl.appendChild(btn);
     });
+
+    modalEl.classList.remove('hidden');
   }
 
-  // ----------------------------------------------------
-  // CANVAS RENDERING ENGINE (CAMERA OFFSET + CULLING)
-  // ----------------------------------------------------
-  render() {
-    const ctx = this.ctx;
-    const cs = this.CELL_SIZE;
-    const now = Date.now();
-    const camX = Math.round(this.camera.x);
-    const camY = Math.round(this.camera.y);
+  triggerCardCastSpotlight(attacker, card, target = null) {
+    const el = document.getElementById('cardCastSpotlight');
+    if (!el) return;
 
-    ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    const img = document.getElementById('cardCastImg');
+    const badge = document.getElementById('cardCastBadge');
+    const title = document.getElementById('cardCastTitle');
+    const user = document.getElementById('cardCastUser');
+    const desc = document.getElementById('cardCastDesc');
+    const glow = document.getElementById('cardCastGlow');
 
-    // Save context and apply CAMERA TRANSLATION
-    ctx.save();
-    ctx.translate(-camX, -camY);
+    if (img) img.src = card.icon;
+    if (title) title.innerText = card.name;
+    if (desc) desc.innerText = card.desc;
 
-    // Frustum culling: calculate visible tile range (+2 margin)
-    const startCol = Math.max(0, Math.floor(camX / cs) - 1);
-    const endCol = Math.min(this.GRID_COLS, Math.ceil((camX + this.canvas.width) / cs) + 1);
-    const startRow = Math.max(0, Math.floor(camY / cs) - 1);
-    const endRow = Math.min(this.GRID_ROWS, Math.ceil((camY + this.canvas.height) / cs) + 1);
+    let targetText = '';
+    if (target) {
+      targetText = ` ➔ nhắm vào ${target.name}`;
+    }
+    if (user) user.innerText = `⚡ ${attacker.name} đang thi triển${targetText}`;
 
-    // 1. Draw Visible Grid & Territories
-    for (let r = startRow; r < endRow; r++) {
-      for (let c = startCol; c < endCol; c++) {
-        const cell = this.grid[r][c];
-        const x = c * cs;
-        const y = r * cs;
-
-        if (cell.owner !== null) {
-          const ownerPlayer = this.players[cell.owner];
-          if (ownerPlayer) {
-            ctx.fillStyle = ownerPlayer.color;
-            ctx.globalAlpha = cell.owner === this.myPlayerId ? 0.62 : 0.42;
-            ctx.fillRect(x + 1, y + 1, cs - 2, cs - 2);
-
-            if (cell.owner === this.myPlayerId) {
-              ctx.strokeStyle = 'rgba(255, 230, 109, 0.4)';
-              ctx.lineWidth = 1;
-              ctx.strokeRect(x + 1.5, y + 1.5, cs - 3, cs - 3);
-            }
-            ctx.globalAlpha = 1.0;
-          }
-        } else {
-          ctx.fillStyle = '#12121c';
-          ctx.fillRect(x + 1, y + 1, cs - 2, cs - 2);
-        }
-
-        // Draw Trails
-        if (cell.trail !== null) {
-          const trailPlayer = this.players[cell.trail];
-          if (trailPlayer) {
-            ctx.fillStyle = trailPlayer.color;
-            ctx.shadowColor = trailPlayer.color;
-            ctx.shadowBlur = cell.trail === this.myPlayerId ? 12 : 6;
-            ctx.fillRect(x + 2, y + 2, cs - 4, cs - 4);
-            ctx.shadowBlur = 0;
-          }
-        }
+    if (badge) {
+      badge.className = 'card-cast-badge';
+      if (card.id.startsWith('Shard')) {
+        badge.classList.add('exodia');
+        badge.innerText = '👑 THẦN BÀI EXODIA';
+      } else if (card.type === 'Buff') {
+        badge.classList.add('buff');
+        badge.innerText = '✨ BUFF HỖ TRỢ';
+      } else if (card.type === 'Debuff') {
+        badge.classList.add('debuff');
+        badge.innerText = '🔥 DEBUFF TẤN CÔNG';
+      } else {
+        badge.classList.add('neutral');
+        badge.innerText = '🌀 CHIẾN THUẬT';
       }
     }
 
-    // World border outline
-    ctx.strokeStyle = 'rgba(78, 205, 196, 0.3)';
-    ctx.lineWidth = 3;
-    ctx.strokeRect(0, 0, this.GRID_COLS * cs, this.GRID_ROWS * cs);
+    if (glow) {
+      const tintColor = card.id.startsWith('Shard') ? 'rgba(255, 215, 0, 0.4)' : (card.type === 'Debuff' ? 'rgba(255, 56, 100, 0.4)' : 'rgba(0, 229, 255, 0.4)');
+      glow.style.background = `radial-gradient(circle, ${tintColor} 0%, transparent 65%)`;
+    }
 
-    // 2. Draw Powerups
-    const pulseScale = 1 + Math.sin(now / 180) * 0.12;
-    this.powerups.forEach(pu => {
-      const cx = pu.x * cs + cs / 2;
-      const cy = pu.y * cs + cs / 2;
+    el.classList.remove('hidden');
+    clearTimeout(this.spotlightTimeout);
+    this.spotlightTimeout = setTimeout(() => {
+      el.classList.add('hidden');
+    }, 1100);
+  }
 
-      ctx.save();
-      ctx.translate(cx, cy);
-      ctx.scale(pulseScale, pulseScale);
-      ctx.shadowColor = pu.color;
-      ctx.shadowBlur = 12;
+  // ------------------------------------------------------
+  // 10. CARD EFFECT EXECUTION ENGINE
+  // ------------------------------------------------------
+  executeCardEffect(attackerId, card, cardIndex, params = {}) {
+    const attacker = this.getPlayerById(attackerId);
+    if (!attacker) return;
 
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-      ctx.beginPath();
-      ctx.arc(0, 0, cs * 0.45, 0, Math.PI * 2);
-      ctx.fill();
+    // 1. BIẾN MẤT KHỎI TAY NGAY LẬP TỨC: Tiêu thụ thẻ và render lại khay bài
+    if (cardIndex >= 0 && cardIndex < attacker.handCards.length) {
+      attacker.handCards.splice(cardIndex, 1);
+    }
+    this.discardDeck.push(card);
+    attacker.usedCardsCount = (attacker.usedCardsCount || 0) + 1;
 
-      ctx.font = `${Math.floor(cs * 0.65)}px sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(pu.icon, 0, 1);
-      ctx.restore();
-    });
+    // Cập nhật giao diện bài trên tay và HUD ngay lập tức
+    this.renderHandCardsUI();
+    this.updateHUD();
+    sound.playCard();
 
-    // 3. Draw Players
-    const matchAge = (now - this.gameStartTime) / 1000;
+    const target = params.targetPlayerId ? this.getPlayerById(params.targetPlayerId) : null;
 
-    this.players.forEach(p => {
-      if (!p.isAlive) return;
+    // 2. SHOW SPOTLIGHT HIỆU ỨNG TUNG CHIÊU RỰC RỠ
+    this.triggerCardCastSpotlight(attacker, card, target);
+    this.setBanner(`🎴 ${attacker.name} DÙNG THẺ: ${card.name}`, card.desc);
 
-      const px = p.x * cs;
-      const py = p.y * cs;
-      const isLocal = p.id === this.myPlayerId;
+    // --- PASSIVE DEFENSE: COUNTER & SHIELD IN HAND TRIGGER ---
+    if (target && card.type === 'Debuff') {
+      // 1. Check if target holds a 'Counter' card in hand
+      const counterIdx = target.handCards.findIndex(c => c.id === 'Counter');
+      if (counterIdx >= 0) {
+        // Consume 1 Counter card from hand
+        const consumedCounter = target.handCards.splice(counterIdx, 1)[0];
+        this.discardDeck.push(consumedCounter);
 
-      ctx.save();
+        sound.playCard();
+        this.setBanner(`⚔️ PHẢN ĐÒN TỰ ĐỘNG KÍCH HOẠT!`, `${target.name} đã dùng Phản Đòn trong túi để hất ngược hiệu ứng ${card.name} về lại ${attacker.name}!`);
 
-      // Radar & Pointer for Local Player
-      if (isLocal && matchAge < 8) {
-        const ripplePhase = (now % 1200) / 1200;
-        ctx.strokeStyle = '#FFE66D';
-        ctx.lineWidth = 3 * (1 - ripplePhase);
-        ctx.beginPath();
-        ctx.arc(px + cs / 2, py + cs / 2, cs * (0.6 + ripplePhase * 2.5), 0, Math.PI * 2);
-        ctx.stroke();
-
-        const bounce = Math.sin(now / 120) * 5;
-        ctx.fillStyle = '#FFE66D';
-        ctx.font = 'bold 12px Montserrat, Orbitron, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.shadowColor = '#FFE66D';
-        ctx.shadowBlur = 10;
-        ctx.fillText('▼ BẠN Ở ĐÂY!', px + cs / 2, py - 26 + bounce);
-        ctx.shadowBlur = 0;
-      }
-
-      ctx.shadowColor = p.color;
-      ctx.shadowBlur = isLocal ? 20 : 10;
-
-      // Frozen
-      if (p.frozenUntil > now) {
-        ctx.fillStyle = '#00D2D3';
-        ctx.fillRect(px, py, cs, cs);
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-        ctx.font = `${Math.floor(cs * 0.6)}px sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('❄️', px + cs / 2, py + cs / 2);
-        ctx.restore();
+        // Reverse effect back to attacker
+        this.applyDirectDebuff(attacker, card);
+        this.updateHUD();
+        this.renderHandCardsUI();
         return;
       }
 
-      // Block Head
-      ctx.fillStyle = p.color;
-      ctx.fillRect(px + 1, py + 1, cs - 2, cs - 2);
+      // 2. Check if target holds a 'Shield' card in hand
+      const shieldIdx = target.handCards.findIndex(c => c.id === 'Shield');
+      if (shieldIdx >= 0) {
+        // Consume 1 Shield card from hand
+        const consumedShield = target.handCards.splice(shieldIdx, 1)[0];
+        this.discardDeck.push(consumedShield);
 
-      if (isLocal) {
-        ctx.strokeStyle = '#FFE66D';
-        ctx.lineWidth = 2.5;
-        ctx.strokeRect(px + 1, py + 1, cs - 2, cs - 2);
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 1.5;
-        ctx.strokeRect(px + 3, py + 3, cs - 6, cs - 6);
-      } else {
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
-        ctx.lineWidth = 1.5;
-        ctx.strokeRect(px + 2, py + 2, cs - 4, cs - 4);
+        sound.playCard();
+        this.setBanner(`🛡️ KHIÊN TỰ ĐỘNG KÍCH HOẠT!`, `${target.name} đã dùng Khiên trong túi để chặn đứng hoàn toàn hiệu ứng ${card.name} từ ${attacker.name}!`);
+
+        this.updateHUD();
+        this.renderHandCardsUI();
+        return;
       }
 
-      // Shield Ring
-      if (p.hasShield) {
-        ctx.strokeStyle = '#4ECDC4';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.arc(px + cs / 2, py + cs / 2, cs * 0.75, 0, Math.PI * 2);
-        ctx.stroke();
+      // 3. Rival Immunity check
+      if (target.immuneAgainst === attacker.id && target.rivalImmunityTurns > 0) {
+        this.setBanner(`🌟 MIỄN NHIỄM!`, `${target.name} đang miễn nhiễm mọi chiêu thức từ ${attacker.name}!`);
+        this.updateHUD();
+        this.renderHandCardsUI();
+        return;
       }
+    }
 
-      // Face & Eyes
-      if (!p.isBot) {
-        ctx.font = `${Math.floor(cs * 0.7)}px sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'bottom';
-        ctx.fillText('👑', px + cs / 2, py + 2);
+    // Process specific card effect
+    switch (card.id) {
+      case 'UnexpectedLuck':
+        this.drawCardForPlayer(attackerId, true);
+        this.drawCardForPlayer(attackerId, true);
+        break;
 
-        ctx.fillStyle = '#ffffff';
-        const eyeW = Math.max(3, cs * 0.2);
-        const eyeH = Math.max(3, cs * 0.25);
-        const ex1 = px + cs * 0.25 + p.dir.x * 2;
-        const ey1 = py + cs * 0.35 + p.dir.y * 2;
-        const ex2 = px + cs * 0.55 + p.dir.x * 2;
-        const ey2 = py + cs * 0.35 + p.dir.y * 2;
-        ctx.fillRect(ex1, ey1, eyeW, eyeH);
-        ctx.fillRect(ex2, ey2, eyeW, eyeH);
+      case 'GainMomentum':
+        attacker.skipNextDrawToDraw3 = true;
+        break;
 
-        ctx.fillStyle = '#060608';
-        ctx.fillRect(ex1 + (p.dir.x > 0 ? 1 : 0), ey1 + (p.dir.y > 0 ? 1 : 0), eyeW * 0.6, eyeH * 0.6);
-        ctx.fillRect(ex2 + (p.dir.x > 0 ? 1 : 0), ey2 + (p.dir.y > 0 ? 1 : 0), eyeW * 0.6, eyeH * 0.6);
-      } else {
-        ctx.fillStyle = '#0a0a10';
-        ctx.fillRect(px + cs * 0.2, py + cs * 0.35, cs * 0.6, cs * 0.2);
-        ctx.fillStyle = p.color;
-        ctx.fillRect(px + cs * 0.3 + p.dir.x * 2, py + cs * 0.4, cs * 0.25, cs * 0.1);
-      }
+      case 'CardCollection':
+        const bonusDraws = Math.max(1, Math.floor(attacker.cellCount / 12));
+        for (let i = 0; i < bonusDraws; i++) this.drawCardForPlayer(attackerId, true);
+        break;
 
-      // Name Badge
-      const tagY = py - (matchAge < 8 && isLocal ? 12 : 8);
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
+      case 'Nuke':
+        // Claim 3 random empty cells
+        const empties = [];
+        for (let x = 0; x < BOARD_SIZE; x++) {
+          for (let y = 0; y < BOARD_SIZE; y++) {
+            if (this.grid[x][y].owner === 0 && !this.grid[x][y].blocked) empties.push({ x, y });
+          }
+        }
+        for (let i = 0; i < 3 && empties.length > 0; i++) {
+          const randIdx = Math.floor(Math.random() * empties.length);
+          const chosen = empties.splice(randIdx, 1)[0];
+          this.setCellOwner(chosen.x, chosen.y, attackerId);
+        }
+        this.checkAndApplyCaptures(attackerId);
+        break;
 
-      if (isLocal) {
-        const label = `👑 ${p.name.toUpperCase()} (BẠN)`;
-        ctx.font = 'bold 10px Orbitron, Montserrat, sans-serif';
-        const tw = ctx.measureText(label).width;
+      case 'BanTurn':
+        if (target) target.isBanned = true;
+        break;
 
-        ctx.fillStyle = 'rgba(6, 6, 8, 0.9)';
-        ctx.strokeStyle = '#FFE66D';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.roundRect(px + cs / 2 - tw / 2 - 5, tagY - 8, tw + 10, 16, 5);
-        ctx.fill();
-        ctx.stroke();
+      case 'DisableOnHand':
+        if (target) target.disabledHandTurns = 2;
+        break;
 
-        ctx.fillStyle = '#FFE66D';
-        ctx.fillText(label, px + cs / 2, tagY);
-      } else {
-        const prefix = p.isBot ? '🤖 ' : '🎮 ';
-        const label = `${prefix}${p.name}`;
-        ctx.font = '9px Montserrat, sans-serif';
-        const tw = ctx.measureText(label).width;
+      case 'Rival':
+        if (target) {
+          attacker.rivalImmunityTurns = 3;
+          attacker.immuneAgainst = target.id;
+        }
+        break;
 
-        ctx.fillStyle = 'rgba(10, 10, 15, 0.75)';
-        ctx.beginPath();
-        ctx.roundRect(px + cs / 2 - tw / 2 - 4, tagY - 7, tw + 8, 14, 4);
-        ctx.fill();
+      case 'LoseControl':
+        if (target) target.isLostControl = true;
+        break;
 
-        ctx.fillStyle = '#cbd5e1';
-        ctx.fillText(label, px + cs / 2, tagY);
-      }
+      case 'Psyco':
+        if (target) target.controlledBy = attacker.id;
+        break;
 
-      ctx.restore();
-    });
+      case 'SwapCard':
+        if (target) {
+          const temp = [...attacker.handCards];
+          attacker.handCards = [...target.handCards];
+          target.handCards = temp;
+          this.checkExodiaWin(attacker.id);
+          this.checkExodiaWin(target.id);
+        }
+        break;
 
-    // 4. Draw Particles
-    this.particles.forEach(pt => {
-      ctx.fillStyle = pt.color;
-      ctx.globalAlpha = Math.max(0, pt.alpha);
-      ctx.beginPath();
-      ctx.arc(pt.x, pt.y, pt.size, 0, Math.PI * 2);
-      ctx.fill();
-    });
-    ctx.globalAlpha = 1.0;
+      case 'StealCard':
+        if (target) {
+          this.startMysteryStealMinigame(attacker, target);
+        }
+        break;
 
-    // 5. Draw Floating Combat Text
-    ctx.font = 'bold 12px Orbitron, Montserrat, sans-serif';
-    ctx.textAlign = 'center';
-    this.floatingTexts.forEach(ft => {
-      ctx.save();
-      ctx.globalAlpha = Math.max(0, ft.alpha);
-      ctx.fillStyle = ft.color;
-      ctx.shadowColor = '#000';
-      ctx.shadowBlur = 6;
-      ctx.fillText(ft.text, ft.x, ft.y);
-      ctx.restore();
-    });
-    ctx.globalAlpha = 1.0;
+      case 'ShowCard':
+        if (target) {
+          this.openPeepModal(target);
+        }
+        break;
 
-    // Restore Camera Translation
-    ctx.restore();
+      case 'BodySwap':
+        if (target) {
+          for (let x = 0; x < BOARD_SIZE; x++) {
+            for (let y = 0; y < BOARD_SIZE; y++) {
+              if (this.grid[x][y].owner === attacker.id) {
+                this.grid[x][y].owner = target.id;
+              } else if (this.grid[x][y].owner === target.id) {
+                this.grid[x][y].owner = attacker.id;
+              }
+            }
+          }
+          this.recalculateCellCounts();
+          this.setBanner(`🔄 HOÁN ĐỔI THỂ XÁC THÀNH CÔNG!`, `${attacker.name} và ${target.name} đã tráo đổi toàn bộ lãnh thổ!`);
+        }
+        break;
 
-    // ==========================================
-    // SCREEN-SPACE ELEMENTS (MINIMAP & BANNER)
-    // ==========================================
-    this.drawMinimap(ctx);
+      case 'ReverseWind':
+        this.turnDirection *= -1;
+        this.setBanner(`🌪️ GIÓ ĐỔI CHIỀU!`, `Thứ tự lượt đi giữa các người chơi đã quay ngược lại!`);
+        break;
 
-    // Start-of-Match Announcement Banner
-    if (matchAge < 3.5 && this.players[this.myPlayerId]) {
-      const bannerAlpha = Math.min(1, (3.5 - matchAge) * 1.5);
-      ctx.save();
-      ctx.globalAlpha = bannerAlpha;
+      case 'PeaceWorld':
+        this.players.forEach(pl => pl.disabledHandTurns = 3);
+        this.setBanner(`🕊️ NGÀY HOÀ BÌNH!`, `Toàn bộ người chơi bị vô hiệu hoá sử dụng thẻ bài trong 3 lượt!`);
+        break;
 
-      const isMobileCanvas = this.canvas.width < 440;
-      const bw = Math.min(this.canvas.width - 20, 480);
-      const bh = isMobileCanvas ? 38 : 42;
-      const bx = (this.canvas.width - bw) / 2;
-      const by = 12;
+      case 'RockPaperScissor':
+        if (target) {
+          this.startRPSMinigame(attacker, target);
+        }
+        break;
 
-      ctx.fillStyle = 'rgba(6, 6, 8, 0.92)';
-      ctx.strokeStyle = '#FFE66D';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.roundRect(bx, by, bw, bh, 10);
-      ctx.fill();
-      ctx.stroke();
+      case 'BlockCell':
+        if (params.cellX !== undefined && params.cellY !== undefined) {
+          this.grid[params.cellX][params.cellY].blocked = true;
+          this.grid[params.cellX][params.cellY].owner = 0;
+          this.setBanner(`⛔ ĐÃ PHONG ẤN Ô (${params.cellX}, ${params.cellY})!`, `Ô này đã bị khóa vĩnh viễn không ai có thể chiếm.`);
+        }
+        break;
 
-      ctx.font = isMobileCanvas ? 'bold 10px Montserrat, sans-serif' : 'bold 12px Montserrat, sans-serif';
-      ctx.fillStyle = '#FFE66D';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(isMobileCanvas ? '🎯 BÀN CỜ 56x56 • ĐỊNH VỊ BẰNG RADAR 👑' : '🎯 BÀN CỜ 56x56 • CAMERA THEO DÕI BẠN • VƯƠNG MIỆN 👑', this.canvas.width / 2, by + (isMobileCanvas ? 12 : 14));
-      ctx.font = isMobileCanvas ? '8.5px Montserrat, sans-serif' : '10px Montserrat, sans-serif';
-      ctx.fillStyle = '#e2e8f0';
-      ctx.fillText('Quan sát Radar ở góc để định vị toàn bộ bản đồ!', this.canvas.width / 2, by + (isMobileCanvas ? 25 : 28));
-      ctx.restore();
+      case 'CastleIsolate':
+        if (params.cellX !== undefined && params.cellY !== undefined) {
+          const cx = params.cellX;
+          const cy = params.cellY;
+          for (let dx = -1; dx <= 1; dx++) {
+            for (let dy = -1; dy <= 1; dy++) {
+              if (dx === 0 && dy === 0) continue;
+              const nx = cx + dx;
+              const ny = cy + dy;
+              if (nx >= 0 && nx < BOARD_SIZE && ny >= 0 && ny < BOARD_SIZE && !this.grid[nx][ny].blocked) {
+                this.setCellOwner(nx, ny, attacker.id);
+              }
+            }
+          }
+          this.checkAndApplyCaptures(attacker.id);
+          this.setBanner(`🏰 LÂU ĐÀI CÔ ĐỘC!`, `Đã chiếm thành công 8 ô xung quanh ô (${cx}, ${cy})!`);
+        }
+        break;
+
+      case 'ImortalLine':
+        if (params.cellX !== undefined && params.cellY !== undefined) {
+          const cx = params.cellX;
+          const cy = params.cellY;
+          for (let i = 0; i < BOARD_SIZE; i++) {
+            if (this.grid[i][cy].owner === attacker.id) this.grid[i][cy].protectedUntil = this.turnNumber + 3;
+            if (this.grid[cx][i].owner === attacker.id) this.grid[cx][i].protectedUntil = this.turnNumber + 3;
+          }
+          this.setBanner(`✝️ TUYẾN BẤT TỬ!`, `Toàn bộ ô cờ chữ thập qua ô (${cx}, ${cy}) được bảo vệ trong 3 vòng!`);
+        }
+        break;
+    }
+
+    this.checkExodiaWin(attacker.id);
+    this.updateHUD();
+    this.renderHandCardsUI();
+  }
+
+  applyDirectDebuff(victim, card) {
+    if (card.id === 'BanTurn') victim.isBanned = true;
+    if (card.id === 'DisableOnHand') victim.disabledHandTurns = 2;
+    if (card.id === 'LoseControl') victim.isLostControl = true;
+  }
+
+  // ------------------------------------------------------
+  // 11. MYSTERY STEAL CARD MINIGAME (SHUFFLE '?')
+  // ------------------------------------------------------
+  startMysteryStealMinigame(attacker, victim) {
+    if (!victim || victim.handCards.length === 0) {
+      this.setBanner(`🕵️ THẤT BẠI:`, `${victim.name} không còn lá bài nào trên tay để trộm!`);
+      return;
+    }
+
+    if (attacker.isHuman) {
+      // Create shuffled shadow deck of victim's cards
+      const shuffledDeck = victim.handCards.map((c, i) => ({ card: c, originalIndex: i }));
+      this.shuffle(shuffledDeck);
+
+      const modal = document.getElementById('stealCardModal');
+      const cardsRow = document.getElementById('mysteryCardsRow');
+      const revealBox = document.getElementById('stealRevealResult');
+      revealBox.classList.add('hidden');
+      cardsRow.innerHTML = '';
+
+      document.getElementById('stealModalSub').innerText = `Bài trên tay của ${victim.name} (${victim.handCards.length} lá) đã được xáo trộn ngẫu nhiên! Hãy chọn 1 lá có dấu ❓ để cướp:`;
+
+      shuffledDeck.forEach((item, slotIdx) => {
+        const mysteryCard = document.createElement('div');
+        mysteryCard.className = 'mystery-card-item';
+        mysteryCard.innerHTML = `
+          <div class="mystery-question-mark">?</div>
+          <div class="mystery-card-sub">LÁ SỐ ${slotIdx + 1}</div>
+        `;
+
+        mysteryCard.addEventListener('click', () => {
+          sound.playDraw();
+          // Steal this card
+          const stolenCard = victim.handCards.splice(item.originalIndex, 1)[0];
+          attacker.handCards.push(stolenCard);
+
+          // Reveal card
+          document.getElementById('stealRevealImg').src = stolenCard.icon;
+          document.getElementById('stealRevealName').innerText = stolenCard.name;
+          document.getElementById('stealRevealText').innerText = `🎉 Bạn đã trộm thành công lá [${stolenCard.name}] từ ${victim.name}!`;
+          revealBox.classList.remove('hidden');
+
+          this.checkExodiaWin(attacker.id);
+          this.updateHUD();
+          this.renderHandCardsUI();
+
+          setTimeout(() => {
+            modal.classList.add('hidden');
+            this.setBanner(`🕵️ TRỘM THÀNH CÔNG!`, `Bạn đã trộm được thẻ [${stolenCard.name}] từ tay ${victim.name}!`);
+          }, 1800);
+        });
+
+        cardsRow.appendChild(mysteryCard);
+      });
+
+      modal.classList.remove('hidden');
+    } else {
+      // Bot randomly steals 1 card
+      const randIdx = Math.floor(Math.random() * victim.handCards.length);
+      const stolen = victim.handCards.splice(randIdx, 1)[0];
+      attacker.handCards.push(stolen);
+      this.setBanner(`🕵️ ${attacker.name} TRỘM BÀI!`, `${attacker.name} đã lấy cắp 1 lá bài bí mật từ tay ${victim.name}!`);
+      this.checkExodiaWin(attacker.id);
+      this.updateHUD();
+      this.renderHandCardsUI();
     }
   }
 
-  // ----------------------------------------------------
-  // MINIMAP RADAR (SCREEN-SPACE CORNER OVERLAY)
-  // ----------------------------------------------------
-  drawMinimap(ctx) {
-    const mapSize = Math.max(72, Math.min(120, Math.floor(this.canvas.width * 0.22)));
-    const pad = Math.max(8, Math.floor(this.canvas.width * 0.02));
-    const mx = this.canvas.width - mapSize - pad;
-    const my = this.canvas.height - mapSize - pad;
+  openPeepModal(targetPlayer) {
+    document.getElementById('peepTargetName').innerText = `Bài trên tay của ${targetPlayer.name} (${targetPlayer.handCards.length} lá):`;
+    const gridEl = document.getElementById('peepCardsGrid');
+    gridEl.innerHTML = targetPlayer.handCards.map(c => `
+      <div class="catalog-card-item">
+        <img src="${c.icon}" class="catalog-card-img" />
+        <div>
+          <div class="catalog-card-name">${c.name}</div>
+          <div class="catalog-card-desc">${c.desc}</div>
+        </div>
+      </div>
+    `).join('') || '<div style="color: var(--text-muted);">Đối thủ không còn lá bài nào trên tay.</div>';
 
-    ctx.save();
+    document.getElementById('peepCardsModal').classList.remove('hidden');
+  }
 
-    // Background box
-    ctx.fillStyle = 'rgba(6, 6, 12, 0.82)';
-    ctx.strokeStyle = 'rgba(78, 205, 196, 0.45)';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.roundRect(mx, my, mapSize, mapSize, 8);
-    ctx.fill();
-    ctx.stroke();
+  // ------------------------------------------------------
+  // 12. ROCK PAPER SCISSORS MINIGAME
+  // ------------------------------------------------------
+  startRPSMinigame(p1, p2) {
+    this.rpsP1 = p1;
+    this.rpsP2 = p2;
 
-    // Render territory sampling
-    const scale = mapSize / this.GRID_COLS;
-    for (let r = 0; r < this.GRID_ROWS; r += 2) {
-      for (let c = 0; c < this.GRID_COLS; c += 2) {
-        const o = this.grid[r][c].owner;
-        if (o !== null && this.players[o]) {
-          ctx.fillStyle = this.players[o].color;
-          ctx.fillRect(mx + c * scale, my + r * scale, Math.max(1, scale * 2), Math.max(1, scale * 2));
+    if (p1.isHuman) {
+      document.getElementById('rpsPromptText').innerText = `Thách đấu Oẳn Tù Tì với ${p2.name}! Hãy ra chiêu:`;
+      document.getElementById('rpsResultText').innerText = '';
+      document.getElementById('rpsModal').classList.remove('hidden');
+    } else {
+      const choices = ['rock', 'paper', 'scissors'];
+      const c1 = choices[Math.floor(Math.random() * 3)];
+      const c2 = choices[Math.floor(Math.random() * 3)];
+      this.resolveRPS(c1, c2);
+    }
+  }
+
+  handleRPSChoice(humanChoice) {
+    const choices = ['rock', 'paper', 'scissors'];
+    const botChoice = choices[Math.floor(Math.random() * 3)];
+    this.resolveRPS(humanChoice, botChoice);
+  }
+
+  resolveRPS(c1, c2) {
+    const resultEl = document.getElementById('rpsResultText');
+    const label = { rock: '✊ BÚA', paper: '✋ BAO', scissors: '✌️ KÉO' };
+
+    let winner = null;
+    if (c1 === c2) {
+      resultEl.innerText = `Hoà nhau (${label[c1]} vs ${label[c2]})! Thử lại...`;
+      return;
+    }
+
+    if ((c1 === 'rock' && c2 === 'scissors') || (c1 === 'scissors' && c2 === 'paper') || (c1 === 'paper' && c2 === 'rock')) {
+      winner = this.rpsP1;
+      resultEl.innerText = `🎉 ${this.rpsP1.name} THẮNG! (${label[c1]} đánh bại ${label[c2]})`;
+    } else {
+      winner = this.rpsP2;
+      resultEl.innerText = `💥 ${this.rpsP2.name} THẮNG! (${label[c2]} đánh bại ${label[c1]})`;
+    }
+
+    setTimeout(() => {
+      document.getElementById('rpsModal').classList.add('hidden');
+      const loser = (winner === this.rpsP1) ? this.rpsP2 : this.rpsP1;
+      this.rewardRPSWinner(winner, loser);
+    }, 1400);
+  }
+
+  rewardRPSWinner(winner, loser) {
+    let stolen = 0;
+    for (let x = 0; x < BOARD_SIZE && stolen < 3; x++) {
+      for (let y = 0; y < BOARD_SIZE && stolen < 3; y++) {
+        if (this.grid[x][y].owner === loser.id && this.isAdjacentToPlayer(x, y, winner.id)) {
+          this.setCellOwner(x, y, winner.id);
+          stolen++;
+        }
+      }
+    }
+    this.setBanner(`🏆 KẾT QUẢ OẰN TÙ TÌ:`, `${winner.name} thắng và cướp ${stolen} ô đất từ ${loser.name}!`);
+    this.checkAndApplyCaptures(winner.id);
+    this.updateHUD();
+  }
+
+  // ------------------------------------------------------
+  // 13. BOT AI LOGIC (INTELLIGENT DECISION MAKING)
+  // ------------------------------------------------------
+  executeBotTurn() {
+    const bot = this.getActivePlayer();
+    if (!bot || bot.isHuman || bot.eliminated || !this.isMatchActive) return;
+
+    // Try playing a non-passive card
+    if (bot.disabledHandTurns === 0 && bot.handCards.length > 0) {
+      const cardToPlayIdx = this.chooseBotCard(bot);
+      if (cardToPlayIdx >= 0) {
+        const card = bot.handCards[cardToPlayIdx];
+        this.playBotCard(bot.id, cardToPlayIdx, card);
+        setTimeout(() => this.executeBotMove(bot), 800);
+        return;
+      }
+    }
+
+    this.executeBotMove(bot);
+  }
+
+  chooseBotCard(bot) {
+    // Only non-passive cards
+    const idxNuke = bot.handCards.findIndex(c => c.id === 'Nuke');
+    if (idxNuke >= 0) return idxNuke;
+
+    const idxDraw = bot.handCards.findIndex(c => c.id === 'UnexpectedLuck');
+    if (idxDraw >= 0 && bot.handCards.length <= 3) return idxDraw;
+
+    const idxBan = bot.handCards.findIndex(c => c.id === 'BanTurn');
+    if (idxBan >= 0) return idxBan;
+
+    const idxSteal = bot.handCards.findIndex(c => c.id === 'StealCard');
+    if (idxSteal >= 0) return idxSteal;
+
+    return -1;
+  }
+
+  playBotCard(botId, cardIndex, card) {
+    if (card.target === 'opponent' || card.target === 'opponent_steal') {
+      const targets = this.players.filter(op => op.id !== botId && !op.eliminated);
+      targets.sort((a, b) => b.cellCount - a.cellCount);
+      if (targets.length > 0) {
+        this.executeCardEffect(botId, card, cardIndex, { targetPlayerId: targets[0].id });
+      }
+    } else {
+      this.executeCardEffect(botId, card, cardIndex, {});
+    }
+  }
+
+  executeBotMove(bot) {
+    if (!this.isMatchActive) return;
+    const validMoves = this.getValidMovesForPlayer(bot.id);
+    if (validMoves.length === 0) {
+      this.nextTurn();
+      return;
+    }
+
+    let bestMove = validMoves[0];
+    let bestScore = -999;
+
+    validMoves.forEach(m => {
+      let score = 0;
+      const distToCenter = Math.hypot(m.x - 7.5, m.y - 7.5);
+      score += (10 - distToCenter);
+
+      if (this.grid[m.x][m.y].owner !== 0) score += 15;
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestMove = m;
+      }
+    });
+
+    this.applyCellMove(bestMove.x, bestMove.y, bot.id);
+  }
+
+  // ------------------------------------------------------
+  // 14. CANVAS INTERACTION & RENDERING
+  // ------------------------------------------------------
+  initCanvasEvents() {
+    let lastTouchTime = 0;
+
+    // Mobile Touch / Pointer Tap support
+    this.canvas.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'touch') {
+        lastTouchTime = Date.now();
+        const rect = this.canvas.getBoundingClientRect();
+        const scaleX = this.canvas.width / rect.width;
+        const scaleY = this.canvas.height / rect.height;
+        const x = Math.floor(((e.clientX - rect.left) * scaleX) / this.cellSize);
+        const y = Math.floor(((e.clientY - rect.top) * scaleY) / this.cellSize);
+
+        if (x >= 0 && x < BOARD_SIZE && y >= 0 && y < BOARD_SIZE) {
+          this.hoverCell = { x, y };
+          if (this.isMatchActive) {
+            this.handleCanvasCellClick(x, y);
+          }
+        }
+      }
+    }, { passive: true });
+
+    this.canvas.addEventListener('mousemove', (e) => {
+      const rect = this.canvas.getBoundingClientRect();
+      const scaleX = this.canvas.width / rect.width;
+      const scaleY = this.canvas.height / rect.height;
+      const x = Math.floor(((e.clientX - rect.left) * scaleX) / this.cellSize);
+      const y = Math.floor(((e.clientY - rect.top) * scaleY) / this.cellSize);
+
+      if (x >= 0 && x < BOARD_SIZE && y >= 0 && y < BOARD_SIZE) {
+        this.hoverCell = { x, y };
+      } else {
+        this.hoverCell = null;
+      }
+    });
+
+    this.canvas.addEventListener('mouseleave', () => {
+      this.hoverCell = null;
+    });
+
+    this.canvas.addEventListener('click', (e) => {
+      if (Date.now() - lastTouchTime < 450) return; // Prevent duplicate event from touch
+      if (!this.hoverCell || !this.isMatchActive) return;
+      this.handleCanvasCellClick(this.hoverCell.x, this.hoverCell.y);
+    });
+  }
+
+  handleCanvasCellClick(x, y) {
+    const active = this.getActivePlayer();
+    if (!active) return;
+
+    const controllerId = active.controlledBy !== 0 ? active.controlledBy : active.id;
+    if (controllerId !== this.localPlayerId) return;
+
+    // 1. If waiting for a cell target card click (Phong Ấn Ô, Lâu Đài Cô Độc, Tuyến Bất Tử)
+    if (this.pendingCardEffect) {
+      const { playerId, card, cardIndex } = this.pendingCardEffect;
+
+      if (card.target === 'cell_empty') {
+        if (this.grid[x][y].owner !== 0 || this.grid[x][y].blocked) {
+          sound.playTick();
+          this.setBanner(`⚠️ Ô (${x}, ${y}) ĐÃ CÓ CHỦ HOẶC BỊ KHÓA!`, `Vui lòng bấm vào 1 ô TRỐNG chưa có ai chiếm để áp dụng ${card.name}.`);
+          return;
+        }
+      } else if (card.target === 'cell') {
+        if (this.grid[x][y].owner !== playerId) {
+          sound.playTick();
+          this.setBanner(`⚠️ Ô (${x}, ${y}) KHÔNG THUỘC LÃNH THỔ BẠN!`, `Vui lòng bấm vào 1 ô của bạn để áp dụng ${card.name}.`);
+          return;
+        }
+      }
+
+      this.pendingCardEffect = null;
+      this.selectedCardIndex = null;
+      this.executeCardEffect(playerId, card, cardIndex, { cellX: x, cellY: y });
+      return;
+    }
+
+    // 2. If a card is selected from hand (Tap-to-Select mechanic on Mobile/PC)
+    if (this.selectedCardIndex !== null) {
+      if (active.id !== this.localPlayerId) {
+        alert('Chưa đến lượt của bạn!');
+        return;
+      }
+      const myPlayer = this.getPlayerById(this.localPlayerId);
+      if (!myPlayer) return;
+      const card = myPlayer.handCards[this.selectedCardIndex];
+      const cardIndex = this.selectedCardIndex;
+      this.selectedCardIndex = null;
+      this.renderHandCardsUI();
+
+      this.handleCardDropOnBoard(card, cardIndex, x, y);
+      return;
+    }
+
+    // Normal Cell Move
+    if (this.remainingMoves <= 0) return;
+
+    const cell = this.grid[x][y];
+    if (cell.owner === active.id) return;
+    if (cell.blocked) {
+      alert('Ô này đã bị phong ấn, không ai có thể chiếm!');
+      return;
+    }
+    if (cell.protectedUntil >= this.turnNumber) {
+      alert('Ô này đang được bảo vệ bởi Tuyến Bất Tử!');
+      return;
+    }
+
+    if (!this.isAdjacentToPlayer(x, y, active.id)) {
+      alert('Nước đi không hợp lệ! Bạn chỉ có thể chiếm ô nằm kề cận (8 hướng) với lãnh thổ của mình.');
+      return;
+    }
+
+    if (this.network.isOnline && !this.network.isHost) {
+      this.network.sendActionToHost({ type: 'CELL_CLICK', x, y });
+    } else {
+      this.applyCellMove(x, y, active.id);
+    }
+  }
+
+  startRenderingLoop() {
+    const render = () => {
+      this.drawBoard();
+      this.animFrameId = requestAnimationFrame(render);
+    };
+    render();
+  }
+
+  drawBoard() {
+    const ctx = this.ctx;
+    ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+    const activePlayer = this.getActivePlayer();
+    const activeId = activePlayer ? activePlayer.id : 0;
+    const time = Date.now() * 0.003;
+
+    // Draw grid cells
+    for (let x = 0; x < BOARD_SIZE; x++) {
+      for (let y = 0; y < BOARD_SIZE; y++) {
+        const px = x * this.cellSize;
+        const py = y * this.cellSize;
+        const cell = this.grid[x] ? this.grid[x][y] : null;
+
+        if (!cell) continue;
+
+        if (cell.blocked) {
+          ctx.fillStyle = '#2d0a14';
+          ctx.fillRect(px, py, this.cellSize, this.cellSize);
+          ctx.strokeStyle = '#ff3366';
+          ctx.lineWidth = 1.5;
+          ctx.strokeRect(px + 1, py + 1, this.cellSize - 2, this.cellSize - 2);
+
+          ctx.font = '16px Montserrat';
+          ctx.fillStyle = '#ff3366';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('🔒', px + this.cellSize / 2, py + this.cellSize / 2);
+          continue;
+        }
+
+        if (cell.owner === 0) {
+          ctx.fillStyle = '#101322';
+          ctx.fillRect(px, py, this.cellSize, this.cellSize);
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(px, py, this.cellSize, this.cellSize);
+        } else {
+          const p = this.getPlayerById(cell.owner);
+          ctx.fillStyle = p ? p.color : '#444';
+          ctx.fillRect(px, py, this.cellSize, this.cellSize);
+
+          const grad = ctx.createLinearGradient(px, py, px + this.cellSize, py + this.cellSize);
+          grad.addColorStop(0, 'rgba(255, 255, 255, 0.25)');
+          grad.addColorStop(1, 'rgba(0, 0, 0, 0.2)');
+          ctx.fillStyle = grad;
+          ctx.fillRect(px, py, this.cellSize, this.cellSize);
+
+          ctx.strokeStyle = 'rgba(0, 0, 0, 0.3)';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(px, py, this.cellSize, this.cellSize);
+
+          if (cell.protectedUntil >= this.turnNumber) {
+            ctx.strokeStyle = '#ffd700';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(px + 2, py + 2, this.cellSize - 4, this.cellSize - 4);
+            ctx.fillStyle = '#ffd700';
+            ctx.font = '12px Montserrat';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('✝️', px + this.cellSize / 2, py + this.cellSize / 2);
+          }
         }
       }
     }
 
-    // Camera viewport rectangle
-    const totalW = this.GRID_COLS * this.CELL_SIZE;
-    const totalH = this.GRID_ROWS * this.CELL_SIZE;
-    const camBoxX = mx + (this.camera.x / totalW) * mapSize;
-    const camBoxY = my + (this.camera.y / totalH) * mapSize;
-    const camBoxW = (this.canvas.width / totalW) * mapSize;
-    const camBoxH = (this.canvas.height / totalH) * mapSize;
+    // Highlight Valid Adjacent Moves for current player with Neon Pulsing Border (chỉ hiện khi không chọn thẻ)
+    if (this.isMatchActive && activePlayer && this.remainingMoves > 0 && !this.pendingCardEffect) {
+      const valid = this.getValidMovesForPlayer(activeId);
+      const pulse = 0.5 + 0.5 * Math.sin(time * 3);
 
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(camBoxX, camBoxY, camBoxW, camBoxH);
+      valid.forEach(v => {
+        const px = v.x * this.cellSize;
+        const py = v.y * this.cellSize;
 
-    // Player Blips
-    this.players.forEach(p => {
-      if (!p.isAlive) return;
-      const bx = mx + (p.x / this.GRID_COLS) * mapSize;
-      const by = my + (p.y / this.GRID_ROWS) * mapSize;
-      const isLocal = p.id === this.myPlayerId;
+        ctx.strokeStyle = activePlayer.color;
+        ctx.lineWidth = 2 + pulse * 1.5;
+        ctx.strokeRect(px + 2, py + 2, this.cellSize - 4, this.cellSize - 4);
 
-      ctx.fillStyle = isLocal ? '#FFE66D' : p.color;
-      ctx.beginPath();
-      ctx.arc(bx, by, isLocal ? 3.5 : 2.5, 0, Math.PI * 2);
-      ctx.fill();
+        ctx.fillStyle = activePlayer.color;
+        ctx.beginPath();
+        ctx.arc(px + this.cellSize / 2, py + this.cellSize / 2, 3 + pulse * 2, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
 
-      if (isLocal) {
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 1;
-        ctx.stroke();
+    // Highlight Targetable Cells in Card Targeting Mode (Phong Ấn Ô, Lâu Đài Cô Độc, Tuyến Bất Tử)
+    if (this.isMatchActive && this.pendingCardEffect) {
+      const { card } = this.pendingCardEffect;
+      const pulse = 0.5 + 0.5 * Math.sin(time * 6);
+      const isBlock = card.id === 'BlockCell';
+      const highlightColor = isBlock ? `rgba(255, 56, 100, ${0.4 + pulse * 0.45})` : `rgba(0, 229, 255, ${0.4 + pulse * 0.45})`;
+
+      for (let x = 0; x < BOARD_SIZE; x++) {
+        for (let y = 0; y < BOARD_SIZE; y++) {
+          const isValid = card.target === 'cell_empty'
+            ? (this.grid[x][y].owner === 0 && !this.grid[x][y].blocked)
+            : (this.grid[x][y].owner === this.localPlayerId);
+
+          if (isValid) {
+            const px = x * this.cellSize;
+            const py = y * this.cellSize;
+            ctx.strokeStyle = highlightColor;
+            ctx.lineWidth = 1.8 + pulse;
+            ctx.strokeRect(px + 2, py + 2, this.cellSize - 4, this.cellSize - 4);
+          }
+        }
       }
+    }
+
+    // Hover Cell Highlight & Crosshair
+    if (this.hoverCell && this.isMatchActive) {
+      const hx = this.hoverCell.x * this.cellSize;
+      const hy = this.hoverCell.y * this.cellSize;
+
+      if (this.pendingCardEffect) {
+        const { card } = this.pendingCardEffect;
+        const isValid = card.target === 'cell_empty'
+          ? (this.grid[this.hoverCell.x][this.hoverCell.y].owner === 0 && !this.grid[this.hoverCell.x][this.hoverCell.y].blocked)
+          : (this.grid[this.hoverCell.x][this.hoverCell.y].owner === this.localPlayerId);
+
+        if (isValid) {
+          ctx.strokeStyle = '#00e5ff';
+          ctx.lineWidth = 3;
+          ctx.strokeRect(hx + 1, hy + 1, this.cellSize - 2, this.cellSize - 2);
+
+          ctx.font = '16px Montserrat';
+          ctx.fillStyle = '#00e5ff';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('🎯', hx + this.cellSize / 2, hy + this.cellSize / 2);
+        } else {
+          ctx.strokeStyle = '#ff3864';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(hx + 1, hy + 1, this.cellSize - 2, this.cellSize - 2);
+
+          ctx.font = '14px Montserrat';
+          ctx.fillStyle = '#ff3864';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('🚫', hx + this.cellSize / 2, hy + this.cellSize / 2);
+        }
+      } else {
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(hx + 1, hy + 1, this.cellSize - 2, this.cellSize - 2);
+      }
+    }
+
+    // Render Particles
+    this.updateAndDrawParticles(ctx);
+  }
+
+  spawnCaptureParticles(x, y, playerId) {
+    const p = this.getPlayerById(playerId);
+    const color = p ? p.color : '#00e5ff';
+    const cx = x * this.cellSize + this.cellSize / 2;
+    const cy = y * this.cellSize + this.cellSize / 2;
+
+    for (let i = 0; i < 6; i++) {
+      this.particles.push({
+        x: cx,
+        y: cy,
+        vx: (Math.random() - 0.5) * 4,
+        vy: (Math.random() - 0.5) * 4,
+        life: 1.0,
+        color: color,
+        size: Math.random() * 4 + 2
+      });
+    }
+  }
+
+  updateAndDrawParticles(ctx) {
+    for (let i = this.particles.length - 1; i >= 0; i--) {
+      const pt = this.particles[i];
+      pt.x += pt.vx;
+      pt.y += pt.vy;
+      pt.life -= 0.04;
+
+      if (pt.life <= 0) {
+        this.particles.splice(i, 1);
+        continue;
+      }
+
+      ctx.save();
+      ctx.globalAlpha = pt.life;
+      ctx.fillStyle = pt.color;
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, pt.size, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  // ------------------------------------------------------
+  // 15. UI & HUD UPDATES
+  // ------------------------------------------------------
+  updateHUD() {
+    this.recalculateCellCounts();
+
+    const p1Count = this.players[0] ? this.players[0].cellCount : 0;
+    const p2Count = this.players[1] ? this.players[1].cellCount : 0;
+    const p3Count = this.players[2] ? this.players[2].cellCount : 0;
+    const p4Count = this.players[3] ? this.players[3].cellCount : 0;
+
+    const p1Pct = ((p1Count / this.totalCells) * 100).toFixed(1);
+    const p2Pct = ((p2Count / this.totalCells) * 100).toFixed(1);
+    const p3Pct = ((p3Count / this.totalCells) * 100).toFixed(1);
+    const p4Pct = ((p4Count / this.totalCells) * 100).toFixed(1);
+
+    document.getElementById('barP1').style.width = p1Pct + '%';
+    document.getElementById('barP2').style.width = p2Pct + '%';
+    document.getElementById('barP3').style.width = p3Pct + '%';
+    document.getElementById('barP4').style.width = p4Pct + '%';
+
+    const badgesEl = document.getElementById('hudPlayerBadges');
+    if (badgesEl) {
+      badgesEl.innerHTML = this.players.map(p => {
+        const shortName = p.name.length > 7 ? p.name.substring(0, 6) + '…' : p.name;
+        const pct = ((p.cellCount / this.totalCells) * 100).toFixed(1);
+        return `
+          <span class="hud-badge" title="${p.name}: ${pct}%">
+            <span class="hud-badge-dot" style="background: ${p.color}; box-shadow: 0 0 6px ${p.color};"></span>
+            <span class="hud-badge-name">${shortName}</span>
+            <strong class="hud-badge-pct">${pct}%</strong>
+          </span>
+        `;
+      }).join('');
+    }
+
+    const active = this.getActivePlayer();
+    if (active) {
+      const pNameEl = document.getElementById('turnPlayerName');
+      if (pNameEl) pNameEl.innerText = active.name;
+      const pDotEl = document.getElementById('turnIndicatorDot');
+      if (pDotEl) {
+        pDotEl.style.background = active.color;
+        pDotEl.style.boxShadow = `0 0 10px ${active.color}`;
+      }
+    }
+
+    const pListEl = document.getElementById('playersList');
+    if (pListEl) {
+      pListEl.innerHTML = this.players.map((p, idx) => {
+        const isTurn = (idx === this.currentTurnIndex);
+        const isYou = (p.id === this.localPlayerId);
+        const pct = ((p.cellCount / this.totalCells) * 100).toFixed(1);
+
+        // Check if has passive Shield or Counter in hand
+        const hasShieldInHand = p.handCards.some(c => c.id === 'Shield');
+        const hasCounterInHand = p.handCards.some(c => c.id === 'Counter');
+
+        return `
+          <div class="player-card ${isTurn ? 'active-turn' : ''} ${p.eliminated ? 'eliminated' : ''}">
+            <div class="pcard-top">
+              <div class="pcard-avatar" style="background: ${p.color}; color: ${p.color};"></div>
+              <span class="pcard-name">${p.name} ${isYou ? '<span class="badge-you">(BẠN)</span>' : ''}</span>
+              <span class="pcard-cards-badge" title="Số thẻ bài đang có trên tay">🃏 ${p.handCards.length}</span>
+              <span class="pcard-pct">${pct}%</span>
+            </div>
+            <div class="pcard-meta">
+              <span>🏰 ${p.cellCount} ô</span>
+              <span class="pcard-meta-pill" title="Số thẻ bài đang cầm trên tay">🃏 ${p.handCards.length}/5</span>
+              <span class="pcard-meta-pill" title="Số thẻ bài đã sử dụng">✨ ${p.usedCardsCount || 0} đã dùng</span>
+            </div>
+            <div class="pcard-buffs">
+              ${hasShieldInHand ? '<span class="buff-tag">🛡️ Khiên Sẵn Sàng</span>' : ''}
+              ${hasCounterInHand ? '<span class="buff-tag">⚔️ Phản Sẵn Sàng</span>' : ''}
+              ${p.isBanned ? '<span class="buff-tag" style="color: red;">🚫 Cấm Lượt</span>' : ''}
+              ${p.disabledHandTurns > 0 ? '<span class="buff-tag" style="color: red;">🔒 Khóa Bài</span>' : ''}
+              ${p.rivalImmunityTurns > 0 ? '<span class="buff-tag">🌟 Bất Hoại</span>' : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    const deckCount = this.mainDeck.length;
+    const discardCount = this.discardDeck.length;
+
+    const elDeck = document.getElementById('deckRemainCount');
+    if (elDeck) elDeck.innerText = deckCount;
+    const elDiscard = document.getElementById('discardRemainCount');
+    if (elDiscard) elDiscard.innerText = discardCount;
+
+    const elDeckMob = document.getElementById('deckRemainCountMobile');
+    if (elDeckMob) elDeckMob.innerText = deckCount;
+    const elDiscardMob = document.getElementById('discardRemainCountMobile');
+    if (elDiscardMob) elDiscardMob.innerText = discardCount;
+
+    const elTrashLabel = document.getElementById('trashCountLabel');
+    if (elTrashLabel) elTrashLabel.innerText = discardCount;
+  }
+
+  updateTimerDisplay() {
+    const timerText = document.getElementById('turnTimerText');
+    const timerPill = document.getElementById('turnTimerPill');
+    timerText.innerText = `${this.turnTimer}s`;
+
+    if (this.turnTimer <= 5) {
+      timerPill.classList.add('urgent');
+    } else {
+      timerPill.classList.remove('urgent');
+    }
+  }
+
+  setBanner(title, sub) {
+    document.getElementById('bannerText').innerText = title;
+    document.getElementById('bannerSub').innerText = sub;
+  }
+
+  showTurnPopup(title) {
+    const banner = document.getElementById('actionBanner');
+    if (banner) {
+      banner.classList.remove('banner-pulse');
+      void banner.offsetWidth; // trigger reflow
+      banner.classList.add('banner-pulse');
+    }
+    const pop = document.getElementById('turnPopup');
+    const popTitle = document.getElementById('turnPopupTitle');
+    if (pop && popTitle) {
+      popTitle.innerText = title;
+      pop.classList.remove('hidden');
+      setTimeout(() => {
+        pop.classList.add('hidden');
+      }, 1500);
+    }
+  }
+
+  // Centered Cards Hand with HTML5 Drag & Drop Support
+  renderHandCardsUI() {
+    const active = this.getActivePlayer();
+    const myPlayer = this.getPlayerById(this.localPlayerId);
+    if (!myPlayer) return;
+
+    const myHand = myPlayer.handCards;
+    document.getElementById('handCount').innerText = myHand.length;
+
+    const isMyTurn = (active && active.id === this.localPlayerId);
+    const badge = document.getElementById('handStatusBadge');
+
+    if (!isMyTurn) {
+      badge.innerText = 'Chờ lượt của bạn';
+      badge.className = 'hand-status-badge disabled';
+    } else if (myPlayer.disabledHandTurns > 0) {
+      badge.innerText = 'Bị khóa dùng thẻ (1 lượt)';
+      badge.className = 'hand-status-badge disabled';
+    } else {
+      badge.innerText = '🟢 Kéo ném thẻ vào sân để dùng';
+      badge.className = 'hand-status-badge';
+    }
+
+    const rowEl = document.getElementById('cardsHandRow');
+    const trashZone = document.getElementById('trashDropZone');
+    const boardContainer = document.getElementById('boardCanvasContainer');
+
+    if (myHand.length === 0) {
+      if (trashZone) trashZone.classList.remove('trash-ready');
+      if (boardContainer) boardContainer.classList.remove('drag-over');
+      this.selectedCardIndex = null;
+      rowEl.innerHTML = '<div class="empty-hand-hint">Không có lá bài nào trên tay. Đầu lượt kế tiếp sẽ tự động rút bài!</div>';
+      return;
+    }
+
+    // Sync Trash and Board glow with selection state
+    if (this.selectedCardIndex !== null && this.selectedCardIndex < myHand.length) {
+      if (trashZone) trashZone.classList.add('trash-ready');
+      const selCard = myHand[this.selectedCardIndex];
+      const isPassive = selCard && (selCard.isPassive || selCard.id === 'Shield' || selCard.id === 'Counter');
+      if (boardContainer) {
+        if (!isPassive) boardContainer.classList.add('drag-over');
+        else boardContainer.classList.remove('drag-over');
+      }
+    } else {
+      if (trashZone) trashZone.classList.remove('trash-ready');
+      if (boardContainer) boardContainer.classList.remove('drag-over');
+      this.selectedCardIndex = null;
+    }
+
+    rowEl.innerHTML = myHand.map((card, idx) => {
+      const isPassive = card.isPassive || card.id === 'Shield' || card.id === 'Counter';
+      const isShard = card.id.startsWith('Shard');
+      const isSelected = (this.selectedCardIndex === idx);
+
+      const cardType = card.type || (isShard ? 'Buff' : 'Neutral');
+      let typeLabel = cardType.toUpperCase();
+      let typeClass = `type-${cardType.toLowerCase()}`;
+      let borderClass = `card-${cardType.toLowerCase()}`;
+
+      if (isPassive) {
+        typeLabel = 'BỊ ĐỘNG 🛡️';
+        typeClass = 'type-passive';
+        borderClass = 'card-passive';
+      } else if (isShard) {
+        typeLabel = 'EXODIA 👑';
+        typeClass = 'type-shard';
+        borderClass = 'card-shard';
+      }
+
+      let selectedClass = '';
+      if (isSelected) {
+        selectedClass = isPassive ? 'selected-passive' : 'selected';
+      }
+
+      return `
+        <div class="game-card-item ${borderClass} ${selectedClass}" draggable="true" data-idx="${idx}" title="${card.desc}">
+          <div class="card-item-header">
+            <span class="card-type-tag ${typeClass}">${typeLabel}</span>
+          </div>
+          <div class="card-icon-frame">
+            <img src="${card.icon}" alt="${card.name}" class="card-img-asset" onerror="this.src='assets/cards/Shield.png'" />
+          </div>
+          <div class="card-item-name">${card.name}</div>
+        </div>
+      `;
+    }).join('');
+
+    // Attach Mobile Touch Drag & Desktop HTML5 Drag & Drop
+    let touchGhost = null;
+    let touchData = null;
+    let startX = 0, startY = 0;
+    let isTouchDragging = false;
+
+    rowEl.querySelectorAll('.game-card-item').forEach(el => {
+      // 1. Desktop HTML5 Drag
+      el.addEventListener('dragstart', (e) => {
+        const idx = parseInt(el.dataset.idx, 10);
+        this.draggedCardData = { card: myHand[idx], index: idx };
+        this.selectedCardIndex = idx;
+        el.classList.add('dragging');
+        e.dataTransfer.setData('text/plain', JSON.stringify({ index: idx }));
+      });
+
+      el.addEventListener('dragend', () => {
+        el.classList.remove('dragging');
+      });
+
+      // 2. Mobile Pointer / Touch Drag
+      el.addEventListener('pointerdown', (e) => {
+        if (e.pointerType !== 'touch') return;
+        const idx = parseInt(el.dataset.idx, 10);
+        touchData = { card: myHand[idx], index: idx, el };
+        startX = e.clientX;
+        startY = e.clientY;
+        isTouchDragging = false;
+      });
+
+      // 3. Tap-to-Select (Both Mobile & PC)
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (isTouchDragging) return;
+        const idx = parseInt(el.dataset.idx, 10);
+        const c = myHand[idx];
+        if (!c) return;
+
+        const isPassive = c.isPassive || c.id === 'Shield' || c.id === 'Counter';
+
+        // Toggle deselect
+        if (this.selectedCardIndex === idx) {
+          this.selectedCardIndex = null;
+          this.pendingCardEffect = null;
+          sound.playClick();
+          this.setBanner(`✋ ĐÃ HỦY CHỌN:`, `Bạn có thể bấm 1 ô kề cận để đi cờ hoặc chạm thẻ bài khác.`);
+          this.renderHandCardsUI();
+          return;
+        }
+
+        sound.playClick();
+        this.selectedCardIndex = idx;
+
+        if (isPassive) {
+          this.pendingCardEffect = null;
+          this.setBanner(`🛡️ [THẺ BỊ ĐỘNG] ${c.name}:`, `Tự động kích hoạt khi bị tấn công! Có thể chạm Thùng Rác để vứt bỏ (chạm lại thẻ để hủy).`);
+        } else if (c.target === 'cell_empty' || c.target === 'cell') {
+          this.pendingCardEffect = { playerId: this.localPlayerId, card: c, cardIndex: idx };
+          if (c.target === 'cell_empty') {
+            this.setBanner(`🎯 CHỈ ĐỊNH Ô: [${c.name}]`, `Bấm vào 1 ô TRỐNG (chưa có chủ) trên bàn cờ để áp dụng. (Chạm lại thẻ để hủy)`);
+          } else {
+            this.setBanner(`🎯 CHỈ ĐỊNH Ô: [${c.name}]`, `Bấm vào 1 ô THUỘC LÃNH THỔ CỦA BẠN trên bàn cờ để áp dụng. (Chạm lại thẻ để hủy)`);
+          }
+        } else {
+          this.pendingCardEffect = null;
+          this.setBanner(`🎯 ĐANG CHỌN: [${c.name}]`, `Chạm vào Sân Cờ để thi triển ngay • Chạm Thùng Rác để vứt bỏ (chạm lại để hủy chọn).`);
+        }
+
+        this.renderHandCardsUI();
+      });
     });
 
-    // Radar Header Text
-    ctx.fillStyle = '#64748b';
-    ctx.font = '700 8px Orbitron, Montserrat, sans-serif';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
-    ctx.fillText('RADAR 56x56', mx + 6, my + 6);
+    // Global touch pointer move and up handlers for mobile dragging
+    if (!this._touchDragAttached) {
+      this._touchDragAttached = true;
 
-    ctx.restore();
+      window.addEventListener('pointermove', (e) => {
+        if (!touchData || e.pointerType !== 'touch') return;
+        const dist = Math.hypot(e.clientX - startX, e.clientY - startY);
+        if (dist > 10 && !isTouchDragging) {
+          isTouchDragging = true;
+          touchGhost = document.createElement('div');
+          touchGhost.className = 'touch-drag-ghost';
+          touchGhost.innerHTML = `
+            <img src="${touchData.card.icon}" />
+            <span>${touchData.card.name}</span>
+          `;
+          document.body.appendChild(touchGhost);
+        }
+
+        if (isTouchDragging && touchGhost) {
+          touchGhost.style.left = `${e.clientX}px`;
+          touchGhost.style.top = `${e.clientY}px`;
+
+          const targetEl = document.elementFromPoint(e.clientX, e.clientY);
+          const boardEl = document.getElementById('boardCanvasContainer');
+          const trashEl = document.getElementById('trashDropZone');
+
+          if (targetEl && (targetEl.closest('#boardCanvasContainer') || targetEl.closest('#gameCanvas'))) {
+            if (boardEl) boardEl.classList.add('drag-over');
+          } else {
+            if (boardEl && this.selectedCardIndex === null) boardEl.classList.remove('drag-over');
+          }
+
+          if (targetEl && targetEl.closest('#trashDropZone')) {
+            if (trashEl) trashEl.classList.add('drag-over');
+          } else {
+            if (trashEl) trashEl.classList.remove('drag-over');
+          }
+        }
+      });
+
+      window.addEventListener('pointerup', (e) => {
+        if (!touchData || e.pointerType !== 'touch') return;
+        if (isTouchDragging && touchGhost) {
+          touchGhost.remove();
+          touchGhost = null;
+
+          const boardEl = document.getElementById('boardCanvasContainer');
+          const trashEl = document.getElementById('trashDropZone');
+          if (boardEl) boardEl.classList.remove('drag-over');
+          if (trashEl) trashEl.classList.remove('drag-over');
+
+          const targetEl = document.elementFromPoint(e.clientX, e.clientY);
+          const { card, index } = touchData;
+
+          if (targetEl && (targetEl.closest('#boardCanvasContainer') || targetEl.closest('#gameCanvas'))) {
+            const rect = this.canvas.getBoundingClientRect();
+            const scaleX = this.canvas.width / rect.width;
+            const scaleY = this.canvas.height / rect.height;
+            const dropCellX = Math.floor(((e.clientX - rect.left) * scaleX) / this.cellSize);
+            const dropCellY = Math.floor(((e.clientY - rect.top) * scaleY) / this.cellSize);
+            this.handleCardDropOnBoard(card, index, dropCellX, dropCellY);
+          } else if (targetEl && targetEl.closest('#trashDropZone')) {
+            this.discardCard(this.localPlayerId, index);
+            this.setBanner(`🗑️ ĐÃ VỨT THẺ:`, `Bạn đã ném thẻ ${card.name} vào thùng rác.`);
+          }
+        }
+
+        touchData = null;
+        setTimeout(() => { isTouchDragging = false; }, 80);
+      });
+    }
+  }
+
+  buildCardsCatalog() {
+    const catEl = document.getElementById('cardsCatalogGrid');
+    if (!catEl) return;
+
+    catEl.innerHTML = CARD_DATABASE.map(c => `
+      <div class="catalog-card-item">
+        <img src="${c.icon}" class="catalog-card-img" onerror="this.src='assets/cards/Shield.png'" />
+        <div>
+          <div class="catalog-card-name">${c.name} (${c.type})</div>
+          <div class="catalog-card-desc">${c.desc}</div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  // ------------------------------------------------------
+  // 16. ONLINE NETWORKING HANDLERS
+  // ------------------------------------------------------
+  updateHostLobbyUI() {
+    const listEl = document.getElementById('hostPlayerList');
+    document.getElementById('hostPlayerCount').innerText = this.network.lobbyPlayers.length;
+
+    listEl.innerHTML = this.network.lobbyPlayers.map((p, i) => `
+      <li class="waiting-item">
+        <div class="waiting-avatar" style="background: ${PLAYER_PROFILES[i].color}"></div>
+        <span class="waiting-name">${p.name}</span>
+        ${p.isHost ? '<span class="badge-host">👑 CHỦ PHÒNG</span>' : ''}
+      </li>
+    `).join('');
+  }
+
+  onLobbyUpdate(players) {
+    if (this.network.isHost) {
+      this.updateHostLobbyUI();
+    } else {
+      const listEl = document.getElementById('guestPlayerList');
+      listEl.innerHTML = players.map((p, i) => `
+        <li class="waiting-item">
+          <div class="waiting-avatar" style="background: ${PLAYER_PROFILES[i].color}"></div>
+          <span class="waiting-name">${p.name}</span>
+          ${p.isHost ? '<span class="badge-host">👑 CHỦ PHÒNG</span>' : ''}
+        </li>
+      `).join('');
+    }
+  }
+
+  onPlayerDisconnectedInMatch(playerId) {
+    const p = this.getPlayerById(playerId);
+    if (p) {
+      p.isHuman = false;
+      this.setBanner(`⚠️ ${p.name} MẤT KẾT NỐI!`, `Hệ thống Bot AI đã tiếp quản để trận đấu tiếp tục bình thường.`);
+    }
+  }
+
+  handleClientTurnAction(playerId, action) {
+    if (!this.isMatchActive || !this.network.isHost) return;
+
+    const active = this.getActivePlayer();
+    if (active.id !== playerId) return;
+
+    if (action.type === 'CELL_CLICK') {
+      this.applyCellMove(action.x, action.y, playerId);
+    } else if (action.type === 'PLAY_CARD') {
+      const card = active.handCards[action.cardIndex];
+      if (card) this.executeCardEffect(playerId, card, action.cardIndex, action.params);
+    } else if (action.type === 'DISCARD_CARD') {
+      this.discardCard(playerId, action.cardIndex);
+    }
+
+    this.broadcastSnapshot();
+  }
+
+  broadcastSnapshot() {
+    this.network.broadcastHostSnapshot({
+      grid: this.grid,
+      players: this.players,
+      currentTurnIndex: this.currentTurnIndex,
+      turnNumber: this.turnNumber,
+      turnTimer: this.turnTimer,
+      remainingMoves: this.remainingMoves
+    });
+  }
+
+  applyHostSnapshot(snapshot) {
+    this.grid = snapshot.grid;
+    this.players = snapshot.players;
+    this.currentTurnIndex = snapshot.currentTurnIndex;
+    this.turnNumber = snapshot.turnNumber;
+    this.turnTimer = snapshot.turnTimer;
+    this.remainingMoves = snapshot.remainingMoves;
+
+    this.updateHUD();
+    this.renderHandCardsUI();
   }
 }
 
-// ----------------------------------------------------
-// UTILITY FUNCTIONS
-// ----------------------------------------------------
-function shuffleArray(arr) {
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-}
-
-function escapeHTML(str) {
-  return str.replace(/[&<>'"]/g, tag => ({
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    "'": '&#39;',
-    '"': '&quot;'
-  }[tag] || tag));
-}
-
-function createBadge(icon, name, color) {
-  const el = document.createElement('div');
-  el.className = 'powerup-pill';
-  el.style.setProperty('--p-color', color);
-  el.style.setProperty('--p-glow', color);
-  el.innerHTML = `<span>${icon}</span><span>${name}</span>`;
-  return el;
-}
-
-// Instantiate game engine on load
+// --------------------------------------------------------
+// Launch game on DOM load
+// --------------------------------------------------------
 window.addEventListener('DOMContentLoaded', () => {
   window.game = new ColorSpillGame();
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get('testMatch') === '1') {
+    setTimeout(() => {
+      window.game.startOfflineMatch();
+
+      if (urlParams.get('selectCard') === '1') {
+        setTimeout(() => {
+          const firstCard = document.querySelector('.game-card-item');
+          if (firstCard) firstCard.click();
+        }, 500);
+      }
+    }, 150);
+  }
 });

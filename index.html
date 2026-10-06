@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>Color Spill: Mini Game - Cuộc Chiến Sắc Màu</title>
-  <meta name="description" content="Mini game mở rộng lãnh thổ màu sắc chơi mượt trên cả Điện Thoại và Máy Tính. Tạo phòng chia sẻ link chơi cùng bạn bè!" />
+  <title>Color Spill: Board Game & Thẻ Bài Chiến Thuật</title>
+  <meta name="description" content="Board game chiến thuật theo lượt cơ chế bao vây chiếm ô khép kín (Fill Capture) kết hợp 22 thẻ bài ma thuật độc đáo!" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&family=Orbitron:wght@600;800;900&display=swap" rel="stylesheet">
@@ -22,43 +22,51 @@
     <!-- TOP HEADER / IN-GAME HUD -->
     <header class="game-header">
       <div class="brand">
-        <span class="brand-badge">MINI</span>
+        <span class="brand-badge">BOARD GAME</span>
         <span class="brand-title">COLOR<span class="text-coral">SPILL</span></span>
       </div>
 
-      <!-- IN-GAME HUD (Hidden when on setup screen) -->
+      <!-- IN-GAME HUD (Shown during match) -->
       <div id="gameHud" class="hud-container hidden">
         <!-- Live Territory Ownership Bar -->
         <div class="territory-bar-wrapper">
           <div class="territory-label">
-            <span>BẢN ĐỒ CHIẾM ĐÓNG</span>
-            <span id="playerTerritoryPct" class="hud-pct">0.0%</span>
+            <span class="hud-title-tag">BẢN ĐỒ CHIẾM ĐÓNG</span>
           </div>
           <div class="territory-bar" id="territoryBar">
-            <!-- Dynamic segments generated via JS -->
+            <div id="barP1" class="bar-seg seg-p1" style="width: 25%"></div>
+            <div id="barP2" class="bar-seg seg-p2" style="width: 25%"></div>
+            <div id="barP3" class="bar-seg seg-p3" style="width: 0%"></div>
+            <div id="barP4" class="bar-seg seg-p4" style="width: 0%"></div>
+            <div id="barEmpty" class="bar-seg seg-empty" style="width: 50%"></div>
           </div>
         </div>
 
+        <!-- Live Player Ownership Badges -->
+        <div id="hudPlayerBadges" class="hud-player-badges">
+          <!-- Dynamically populated with player % tags -->
+        </div>
+
         <div class="hud-stats">
-          <div class="stat-pill">
-            <span class="stat-icon">⭐</span>
-            <span class="stat-val" id="hudScore">0</span>
+          <!-- Turn Indicator Pill -->
+          <div class="stat-pill turn-pill" id="turnIndicatorPill">
+            <span class="turn-dot" id="turnIndicatorDot"></span>
+            <span class="stat-label">LƯỢT:</span>
+            <span class="stat-val" id="turnPlayerName">Player 1</span>
           </div>
-          <div class="stat-pill">
-            <span class="stat-icon">💀</span>
-            <span class="stat-val" id="hudKills">0</span>
-          </div>
-          <div class="stat-pill timer-pill">
+
+          <!-- Turn Timer (30s) -->
+          <div class="stat-pill timer-pill" id="turnTimerPill">
             <span class="stat-icon">⏱️</span>
-            <span class="stat-val" id="hudTimer">00:00</span>
+            <span class="stat-val" id="turnTimerText">30s</span>
           </div>
         </div>
 
         <div class="hud-actions">
-          <button id="btnFullscreen" class="btn-icon" title="Toàn màn hình">⛶</button>
           <button id="btnSoundToggle" class="btn-icon" title="Bật/Tắt âm thanh">🔊</button>
-          <button id="btnInGameTutorial" class="btn-icon" title="Xem hướng dẫn">❓</button>
-          <button id="btnPause" class="btn-icon" title="Tạm dừng">⏸️</button>
+          <button id="btnMusicToggle" class="btn-icon" title="Bật/Tắt nhạc nền">🎵</button>
+          <button id="btnInGameTutorial" class="btn-icon" title="Xem hướng dẫn bài & luật chơi">📖</button>
+          <button id="btnQuitMatch" class="btn-icon btn-danger-icon" title="Rời trận đấu">🚪</button>
         </div>
       </div>
     </header>
@@ -72,13 +80,13 @@
 
           <!-- VIEW 1: MAIN MENU (Default View) -->
           <div id="viewMain" class="lobby-view">
-            <div class="lobby-badge">⚔️ COLOR SPILL ARENA</div>
-            <h1 class="hero-title">ĐẤU TRƯỜNG <span class="gradient-text">SẮC MÀU</span></h1>
-            <p class="hero-subtitle">Hoá thân thành khối màu ma thuật, bao vây chiếm đất & săn đối thủ!</p>
+            <div class="lobby-badge">🎲 BOARD GAME CHIẾN THUẬT & THẺ BÀI</div>
+            <h1 class="hero-title">COLOR <span class="gradient-text">SPILL</span></h1>
+            <p class="hero-subtitle">Bao vây khép kín lãnh thổ theo lượt • Kéo thả 22 thẻ bài ma thuật!</p>
 
             <!-- 1. TÊN ĐẤU SĨ -->
             <div class="form-group">
-              <label for="playerNameInput">TÊN ĐẤU SĨ CỦA BẠN:</label>
+              <label for="playerNameInput">TÊN ĐẤU THỦ CỦA BẠN:</label>
               <div class="input-with-action">
                 <input type="text" id="playerNameInput" maxlength="14" placeholder="Nhập tên của bạn..." value="ChromaKnight" autocomplete="off" />
                 <button id="btnRandomName" type="button" class="btn-secondary btn-dice" title="Tạo tên ngẫu nhiên">🎲</button>
@@ -87,49 +95,43 @@
 
             <!-- 2. CHỌN MÀU CHIẾN ĐỘI -->
             <div class="form-group">
-              <label>CHỌN MÀU CHIẾN ĐỘI CỦA BẠN:</label>
+              <label>CHỌN MÀU CỦA BẠN (THEO CHUẨN COLOR SPILL):</label>
               <div class="color-palette" id="colorPalette">
                 <!-- Rendered via JS -->
               </div>
             </div>
 
-            <!-- 3. INFO NHÂN VẬT TRONG TRẬN -->
-            <div class="player-preview-card" id="playerPreviewCard">
-              <div class="preview-avatar-wrapper">
-                <div class="preview-avatar" id="previewAvatar">
-                  <span class="preview-crown">👑</span>
-                  <div class="preview-eyes">
-                    <span class="eye"></span>
-                    <span class="eye"></span>
-                  </div>
-                </div>
-              </div>
-              <div class="preview-info">
-                <div class="preview-tag">NHÂN VẬT CỦA BẠN TRONG TRẬN</div>
-                <div class="preview-name" id="previewPlayerName">ChromaKnight <span class="badge-you">(BẠN)</span></div>
-                <div class="preview-hint">✨ Luôn có <strong>Vương Miện 👑 + Vòng Sáng Radar</strong> định vị ngay!</div>
+            <!-- 3. CHỌN SỐ LƯỢNG NGƯỜI CHƠI -->
+            <div class="form-group">
+              <label>CHẾ ĐỘ TRẬN ĐẤU:</label>
+              <div class="segmented-control" id="matchModeControl">
+                <button type="button" class="seg-btn active" data-mode="2">⚔️ Đấu Tay Đôi (1 vs 1)</button>
+                <button type="button" class="seg-btn" data-mode="4">👑 Hỗn Chiến (4 Người)</button>
               </div>
             </div>
 
-            <!-- 4. 3 NÚT LỚN THEO YÊU CẦU -->
+            <!-- 4. 4 NÚT CHÍNH -->
             <div class="main-menu-buttons">
               <button id="btnNavOffline" type="button" class="btn-primary btn-menu-large">
-                <span class="btn-icon-lead">🤖</span> CHƠI VỚI MÁY
+                <span class="btn-icon-lead">🤖</span> CHƠI VỚI MÁY (BOT)
               </button>
               <button id="btnNavFindRoom" type="button" class="btn-secondary btn-menu-large">
-                <span class="btn-icon-lead">🔍</span> TÌM PHÒNG
+                <span class="btn-icon-lead">🔍</span> TÌM PHÒNG ONLINE
               </button>
               <button id="btnNavCreateRoom" type="button" class="btn-secondary btn-menu-large">
-                <span class="btn-icon-lead">👑</span> TẠO PHÒNG
+                <span class="btn-icon-lead">👑</span> TẠO PHÒNG BẰNG MÃ
               </button>
+              <a href="https://colorspill.id.vn/" target="_blank" rel="noopener noreferrer" class="btn-secondary btn-menu-large btn-website-link" style="text-decoration: none;">
+                <span class="btn-icon-lead">🌐</span> VỀ TRANG WEB CHÍNH (COLORSPILL.ID.VN)
+              </a>
             </div>
 
             <div class="lobby-footer-actions">
               <button id="btnOpenTutorial" type="button" class="btn-text">
-                <span>📖</span> Hướng dẫn luật chơi
+                <span>📖</span> Hướng dẫn 22 thẻ bài & Luật cờ
               </button>
               <div class="lobby-footer-stats">
-                Kỷ lục: <strong id="bestScoreText" class="text-yellow">0</strong> pts • Mục tiêu thắng: <strong class="text-teal">&ge; 35%</strong> bản đồ
+                Cơ chế: <strong class="text-teal">Theo lượt (30s)</strong> • Thắng: <strong class="text-yellow">&ge; 70%</strong> bản đồ hoặc <strong class="text-coral">Đủ 5 Mảnh Vỡ</strong>
               </div>
             </div>
           </div>
@@ -141,7 +143,7 @@
               <h2>🤖 CHƠI VỚI MÁY</h2>
               <div></div>
             </div>
-            <p class="view-desc">Chiến đấu với 3 Bot AI trên đại chiến trường 56x56 ô gạch có camera theo dõi!</p>
+            <p class="view-desc">Chiến đấu với Bot AI thông minh biết dùng thẻ bài và tính toán nước cờ bao vây!</p>
 
             <div class="form-group">
               <label>CHỌN ĐỘ KHÓ CỦA BOT:</label>
@@ -180,11 +182,9 @@
               </div>
             </div>
 
-            <!-- Password field for Private rooms -->
             <div class="form-group hidden" id="roomPasswordGroup">
-              <label>MẬT KHẨU PHÒNG <span class="text-coral">* (Bắt buộc)</span>:</label>
+              <label>MẬT KHẨU PHÒNG <span class="text-coral">*</span>:</label>
               <input type="password" id="createRoomPasswordInput" placeholder="Nhập mật khẩu phòng..." maxlength="16" />
-              <div class="input-hint">Phòng riêng tư bắt buộc phải có mật khẩu. Người khác vào phòng phải nhập đúng mật khẩu.</div>
             </div>
 
             <button id="btnConfirmCreateRoom" type="button" class="btn-primary btn-pulse w-full mt-20">
@@ -206,13 +206,13 @@
                 <button id="btnCopyCode" type="button" class="btn-icon-pill" title="Sao chép">📋 Sao chép</button>
                 <button id="btnShareCode" type="button" class="btn-icon-pill" title="Chia sẻ link phòng">📲 Chia sẻ</button>
               </div>
-              <span class="code-sub">Gửi mã hoặc link này cho bạn bè trên điện thoại hoặc máy tính để vào cùng chiến!</span>
+              <span class="code-sub">Gửi mã code cho bạn bè trên điện thoại hoặc máy tính để cùng vào so tài!</span>
             </div>
 
             <div class="lobby-player-list">
               <div class="list-title">DANH SÁCH ĐẤU THỦ TRONG PHÒNG (<span id="hostPlayerCount">1</span>/4):</div>
               <ul id="hostPlayerList" class="waiting-list"></ul>
-              <div class="waiting-hint">👥 Đấu trường Online 100% người thật (Không có Bot). Đợi bạn bè vào rồi bấm bắt đầu!</div>
+              <div class="waiting-hint">👥 Có thể bấm bắt đầu ngay (chơi 2 người hoặc thêm Bot tự động lấp đầy)!</div>
             </div>
 
             <div class="lobby-actions">
@@ -233,7 +233,6 @@
               <div></div>
             </div>
 
-            <!-- Option 1: Direct Room Code Input -->
             <div class="find-section">
               <label>CÁCH 1: NHẬP MÃ PHÒNG TRỰC TIẾP</label>
               <div class="input-with-action">
@@ -245,7 +244,6 @@
 
             <div class="divider-text"><span>HOẶC</span></div>
 
-            <!-- Option 2: Active Room List on Network -->
             <div class="find-section">
               <div class="section-row">
                 <label>CÁCH 2: PHÒNG ĐANG MỞ TRÊN MẠNG</label>
@@ -257,7 +255,7 @@
             </div>
           </div>
 
-          <!-- VIEW 6: PHÒNG CHỜ CỦA KHÁCH (GUEST WAITING) -->
+          <!-- VIEW 6: PHÒNG CHỜ CỦA KHÁCH -->
           <div id="viewGuestWaiting" class="lobby-view hidden">
             <div class="view-header">
               <h2>🎮 PHÒNG CHỜ (<span id="guestRoomCodeTitle" class="text-teal"></span>)</h2>
@@ -277,67 +275,213 @@
         </div>
       </section>
 
-      <!-- SCREEN 2: BATTLE CANVAS SCREEN -->
+      <!-- SCREEN 2: BOARD GAME ARENA -->
       <section id="gameScreen" class="screen game-screen hidden">
-        <div class="arena-wrapper">
-          <div class="canvas-container" id="canvasContainer">
-            <canvas id="gameCanvas" width="700" height="700"></canvas>
-            
-            <!-- Active Powerup Badges overlay -->
-            <div id="activePowerups" class="active-powerups-overlay"></div>
-          </div>
+        <div class="board-arena-layout">
 
-          <!-- ON-SCREEN MOBILE CONTROLS (Placed right below canvas on mobile) -->
-          <div class="mobile-controls" id="mobileControls">
-            <div class="mobile-control-bar">
-              <span class="mobile-hint">👆 <strong>Vuốt màn hình</strong> hoặc <strong>chạm phím ảo</strong></span>
-              <button id="btnToggleDpad" type="button" class="btn-dpad-toggle">🕹️ Phím: Bật</button>
-            </div>
-            <div class="dpad" id="virtualDpad">
-              <button class="dpad-btn dpad-up" data-dir="up" aria-label="Lên">▲</button>
-              <button class="dpad-btn dpad-left" data-dir="left" aria-label="Trái">◀</button>
-              <div class="dpad-center"></div>
-              <button class="dpad-btn dpad-right" data-dir="right" aria-label="Phải">▶</button>
-              <button class="dpad-btn dpad-down" data-dir="down" aria-label="Xuống">▼</button>
+          <!-- TOP ACTION / COMBAT LOG BANNER -->
+          <div class="arena-action-banner" id="actionBanner">
+            <div class="banner-icon" id="bannerIcon">⚔️</div>
+            <div class="banner-content">
+              <div class="banner-text" id="bannerText">Trận đấu bắt đầu! Hãy bấm vào 1 ô kề cận lãnh thổ của bạn để mở rộng.</div>
+              <div class="banner-sub" id="bannerSub">Đi 1 ô sẽ tự động kết thúc lượt • Kéo thẻ bài vào sân để thi triển!</div>
             </div>
           </div>
 
-          <!-- SIDE LEADERBOARD -->
-          <aside class="live-leaderboard glassmorphism" id="liveLeaderboard">
-            <div class="lb-header" id="lbHeader">
-              <div class="lb-header-title">
-                <span class="lb-icon">🏆</span>
-                <span>BẢNG XẾP HẠNG</span>
-                <span id="lbMyRankPill" class="lb-my-rank-pill">#--</span>
+          <!-- MAIN BOARD & PLAYER HUD COLUMNS -->
+          <div class="board-center-area">
+
+            <!-- SIDEBAR: PLAYERS STATUS (Left Column) -->
+            <aside class="players-panel glassmorphism" id="playersPanel">
+              <div class="panel-header">
+                <span class="panel-icon">👥</span>
+                <span>ĐẤU THỦ</span>
               </div>
-              <button id="btnToggleLb" class="btn-lb-toggle" type="button" aria-label="Thu gọn hoặc mở rộng bảng xếp hạng">▾</button>
-            </div>
-            <div class="lb-body" id="lbBody">
-              <ul class="lb-list" id="lbList">
-                <!-- Dynamically populated -->
-              </ul>
+              <div class="players-list" id="playersList">
+                <!-- 4 Player Cards dynamically rendered -->
+              </div>
+            </aside>
 
-              <div class="powerup-legend">
-                <div class="legend-title">⚡ VẬT PHẨM TRÊN SÂN</div>
-                <div class="legend-grid">
-                  <div class="legend-item"><span class="legend-ico">⚡</span> Tốc độ</div>
-                  <div class="legend-item"><span class="legend-ico">💣</span> Bom sơn</div>
-                  <div class="legend-item"><span class="legend-ico">🛡️</span> Khiên đuôi</div>
-                  <div class="legend-item"><span class="legend-ico">❄️</span> Đóng băng</div>
+            <!-- BOARD CANVAS & DROP ZONE -->
+            <div class="board-wrapper">
+              <div class="board-canvas-container" id="boardCanvasContainer">
+                <canvas id="gameCanvas" width="640" height="640"></canvas>
+                
+                <!-- Board Drag-over Hint Overlay -->
+                <div id="boardDropHint" class="board-drop-hint hidden">
+                  <div class="drop-hint-inner">
+                    <span class="drop-hint-icon">⚡</span>
+                    <span class="drop-hint-text">THẢ VÀO SÂN ĐỂ KÍCH HOẠT THẺ BÀI!</span>
+                  </div>
                 </div>
               </div>
+              <div class="board-hint">
+                💡 <strong>Cơ chế:</strong> Bấm 1 ô kề cận để chiếm (tự động xong lượt). Khép kín vòng bao vây để <strong>nuốt trọn toàn bộ ô bên trong</strong>!
+              </div>
             </div>
-          </aside>
+
+            <!-- RIGHT COLUMN: DEDICATED TRASH BIN & DECK STATUS ZONE -->
+            <aside class="trash-panel glassmorphism" id="trashPanel">
+              <div class="trash-drop-zone" id="trashDropZone">
+                <div class="trash-icon-ring">
+                  <span class="trash-icon">🗑️</span>
+                </div>
+                <div class="trash-label">THÙNG RÁC (<span id="trashCountLabel">0</span>)</div>
+                <div class="trash-sub">Chạm / Kéo thẻ để vứt</div>
+              </div>
+              <!-- Deck & Discard Counters (Duy nhất 1 nơi dưới thùng rác) -->
+              <div class="deck-status-box" id="deckStatusBoxMobile">
+                <div class="deck-status-item" title="Số thẻ bài còn lại trong bộ bài rút">
+                  <span class="deck-icon">🃏</span>
+                  <span>Bộ bài: <strong id="deckRemainCountMobile">40</strong></span>
+                </div>
+                <div class="deck-status-item" title="Số thẻ bài đã bị đưa vào thùng rác">
+                  <span class="deck-icon">🗑️</span>
+                  <span>Đã bỏ: <strong id="discardRemainCountMobile">0</strong></span>
+                </div>
+              </div>
+            </aside>
+
+          </div>
+
+          <!-- BOTTOM DOCK: CARD HAND -->
+          <footer class="card-hand-dock glassmorphism" id="cardHandDock">
+            <div class="dock-header">
+              <div class="dock-title">
+                <span class="dock-icon">🎴</span>
+                <span>BÀI TRÊN TAY CỦA BẠN (<span id="handCount">0</span>/5)</span>
+                <span id="handStatusBadge" class="hand-status-badge">🟢 Chạm / Kéo thẻ để dùng</span>
+              </div>
+              <div class="dock-instruction">
+                <span>✋ Chạm / Kéo thẻ vào <strong>Bàn Cờ</strong> để thi triển • Vào <strong>Thùng Rác</strong> để hủy</span>
+              </div>
+            </div>
+
+            <!-- CARDS CONTAINER (Centered horizontal row) -->
+            <div class="cards-hand-row" id="cardsHandRow">
+              <!-- Rendered via JS -->
+            </div>
+          </footer>
+
         </div>
       </section>
 
     </main>
 
-    <!-- MODAL 1: TUTORIAL MODAL -->
+    <!-- FLOATING CARD ACTIVATION SPOTLIGHT (Hiệu ứng tung chiêu khi dùng bài) -->
+    <div id="cardCastSpotlight" class="card-cast-spotlight hidden">
+      <div class="card-cast-card glassmorphism" id="cardCastCard">
+        <div class="card-cast-glow" id="cardCastGlow"></div>
+        <div class="card-cast-header">
+          <span class="card-cast-badge" id="cardCastBadge">BUFF</span>
+          <span class="card-cast-action" id="cardCastAction">⚡ KÍCH HOẠT THẺ BÀI</span>
+        </div>
+        <div class="card-cast-body">
+          <img id="cardCastImg" src="" alt="Thẻ bài" class="card-cast-img" />
+          <div class="card-cast-info">
+            <h3 class="card-cast-title" id="cardCastTitle">TÊN THẺ BÀI</h3>
+            <div class="card-cast-user" id="cardCastUser">ChromaKnight đang thi triển</div>
+            <p class="card-cast-desc" id="cardCastDesc">Mô tả tác dụng thẻ bài...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: TARGET OPPONENT SELECTOR MODAL -->
+    <div id="targetSelectModal" class="modal-backdrop hidden">
+      <div class="modal-card glassmorphism text-center">
+        <h2>🎯 CHỌN ĐỐI THỦ MỤC TIÊU</h2>
+        <p id="targetSelectSubtitle" class="modal-sub">Chọn một đối thủ để áp dụng hiệu ứng thẻ bài:</p>
+        <div class="target-options-grid" id="targetOptionsGrid">
+          <!-- Populated dynamically with available opponents -->
+        </div>
+        <button class="btn-secondary mt-20" id="btnCancelTargetSelect">Hủy Bỏ</button>
+      </div>
+    </div>
+
+    <!-- MODAL: MYSTERY STEAL CARD MODAL (Trộm bài đối thủ với các lá ?) -->
+    <div id="stealCardModal" class="modal-backdrop hidden">
+      <div class="modal-card glassmorphism text-center steal-modal">
+        <h2>🕵️ TRỘM THẺ BÀI ĐỐI THỦ</h2>
+        <p class="modal-sub" id="stealModalSub">Các lá bài của đối thủ đã được xáo trộn ngẫu nhiên! Hãy chọn 1 lá có dấu ❓ để cướp về tay bạn:</p>
+        <div class="mystery-cards-row" id="mysteryCardsRow">
+          <!-- Populated with mystery '?' cards -->
+        </div>
+        <div id="stealRevealResult" class="steal-reveal-result hidden">
+          <div class="reveal-card-box">
+            <img id="stealRevealImg" src="" alt="Revealed card" class="reveal-img" />
+            <div id="stealRevealName" class="reveal-name">TÊN THẺ</div>
+          </div>
+          <div id="stealRevealText" class="reveal-text">Bạn đã cướp thành công lá bài này!</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: PEEP OPPONENT CARDS MODAL (Xem bài) -->
+    <div id="peepCardsModal" class="modal-backdrop hidden">
+      <div class="modal-card glassmorphism">
+        <div class="modal-header">
+          <h2>👁️ BÀI TRÊN TAY ĐỐI THỦ</h2>
+          <button class="modal-close" id="btnClosePeepModal">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p id="peepTargetName" class="modal-sub">Đang soi bài của đối thủ:</p>
+          <div class="peep-cards-grid" id="peepCardsGrid">
+            <!-- Populated via JS -->
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-primary" id="btnGotPeep">ĐÃ XEM XONG</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: ROCK PAPER SCISSORS MINIGAME MODAL -->
+    <div id="rpsModal" class="modal-backdrop hidden">
+      <div class="modal-card glassmorphism text-center rps-modal">
+        <h2>✌️ OẰN TÙ TÌ CHIẾN THUẬT</h2>
+        <p class="modal-sub" id="rpsPromptText">Chọn ra Kéo, Búa hoặc Bao để so tài với đối thủ!</p>
+        <div class="rps-choices-row">
+          <button type="button" class="rps-choice-btn" data-choice="rock">
+            <span class="rps-emoji">✊</span>
+            <span class="rps-label">BÚA</span>
+          </button>
+          <button type="button" class="rps-choice-btn" data-choice="paper">
+            <span class="rps-emoji">✋</span>
+            <span class="rps-label">BAO</span>
+          </button>
+          <button type="button" class="rps-choice-btn" data-choice="scissors">
+            <span class="rps-emoji">✌️</span>
+            <span class="rps-label">KÉO</span>
+          </button>
+        </div>
+        <div id="rpsResultText" class="rps-result-text"></div>
+      </div>
+    </div>
+
+    <!-- MODAL: VICTORY / DEFEAT GAME OVER -->
+    <div id="gameOverModal" class="modal-backdrop hidden">
+      <div class="modal-card glassmorphism game-over-card text-center">
+        <div class="game-over-icon" id="gameOverIcon">🏆</div>
+        <h2 class="game-over-title" id="gameOverTitle">CHIẾN THẮNG!</h2>
+        <p class="game-over-sub" id="gameOverSub">Bạn đã chiếm lĩnh hoàn toàn đấu trường Color Spill!</p>
+
+        <div class="game-over-stats" id="gameOverStats">
+          <!-- Final scores and territory % -->
+        </div>
+
+        <div class="game-over-actions">
+          <button class="btn-primary" id="btnPlayAgain">🔄 CHƠI LẠI</button>
+          <button class="btn-secondary" id="btnBackToLobby">🏠 VỀ SẢNH CHÍNH</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: RULES & CARDS GUIDE -->
     <div id="tutorialModal" class="modal-backdrop hidden">
       <div class="modal-card glassmorphism tutorial-modal">
         <div class="modal-header">
-          <h2>📖 HƯỚNG DẪN CHIẾN THUẬT</h2>
+          <h2>📖 LUẬT CHƠI & 22 THẺ BÀI CHIẾN THUẬT</h2>
           <button class="modal-close" id="btnCloseTutorial">&times;</button>
         </div>
         <div class="modal-body tutorial-steps">
@@ -345,45 +489,51 @@
           <div class="step-card">
             <div class="step-badge">1</div>
             <div class="step-content">
-              <h3>🎨 Xuất phát & Mở rộng lãnh thổ</h3>
-              <p>Dùng <strong>Phím Mũi Tên</strong> hoặc <strong>W-A-S-D</strong> (hoặc cụm phím ảo trên điện thoại) để di chuyển. Rời khỏi căn cứ của mình sẽ để lại một <em>đường viền vệt màu</em>.</p>
-            </div>
-          </div>
-
-          <div class="step-card">
-            <div class="step-badge">2</div>
-            <div class="step-content">
-              <h3>🔄 Khép vòng chiếm đất</h3>
-              <p>Lái khối màu quay trở lại bất kỳ phần lãnh thổ nào của bạn. <strong>Toàn bộ diện tích bên trong vòng lặp sẽ lập tức biến thành màu của bạn!</strong></p>
+              <h3>🎲 Luật Bàn Cờ Theo Lượt (Turn-Based 30 Giây)</h3>
+              <p>Mỗi lượt bạn có <strong>30 giây</strong> và <strong>1 nước đi</strong>. Bạn chỉ cần bấm vào 1 ô <strong>kề cận (8 hướng)</strong> với lãnh thổ của mình là <strong>tự động xong lượt</strong>.</p>
             </div>
           </div>
 
           <div class="step-card highlight-step">
-            <div class="step-badge">3</div>
+            <div class="step-badge">2</div>
             <div class="step-content">
-              <h3>⚔️ Săn đuôi & Triệt hạ Bot</h3>
-              <p>Khi các Bot đang ở ngoài vẽ vệt màu, hãy lái xe <strong>đâm cắt ngang vệt màu của Bot</strong> để tiêu diệt nó ngay lập tức! Bạn nhận thêm <strong>+300 điểm</strong>!</p>
-            </div>
-          </div>
-
-          <div class="step-card danger-step">
-            <div class="step-badge">4</div>
-            <div class="step-content">
-              <h3>⚠️ Cảnh giác tử thần</h3>
-              <p>Đừng để Bot đâm vào vệt màu của bạn khi chưa kịp về nhà! Và tuyệt đối không tự đâm vào đuôi của chính mình!</p>
+              <h3>🔄 Cơ Chế Bao Vây Khép Kín (Fill Capture)</h3>
+              <p>Khi các ô của bạn tạo thành một vòng bao vây kín hoàn toàn một nhóm ô (kể cả ô trống hay ô của đối thủ) mà chúng không thể thoát ra biên ngoài bàn cờ, <strong>toàn bộ nhóm ô đó sẽ bị bạn nuốt trọn lập tức</strong>!</p>
             </div>
           </div>
 
           <div class="step-card">
-            <div class="step-badge">5</div>
+            <div class="step-badge">3</div>
             <div class="step-content">
-              <h3>🎁 Nhặt siêu vật phẩm</h3>
-              <p>
-                <strong>⚡ Tốc độ</strong>: Tăng tốc lướt nhanh | 
-                <strong>💣 Bom Màu</strong>: Bùng nổ nhuộm ngay 1 vùng đất | 
-                <strong>🛡️ Khiên</strong>: Bảo vệ đuôi khỏi 1 cú cắt | 
-                <strong>❄️ Đóng Băng</strong>: Khiến toàn bộ Bot hóa đá 4 giây!
-              </p>
+              <h3>🎴 Thao Tác Kéo Thả Thẻ Bài</h3>
+              <p>Đầu lượt <strong>hệ thống tự động rút 1 lá bài</strong> về tay (tối đa 5 lá). Muốn dùng thẻ, bạn chỉ cần <strong>kéo ném thẻ bài vào bàn cờ</strong>! Muốn bỏ bài thừa, hãy <strong>kéo ném vào ô Thùng Rác</strong>.</p>
+            </div>
+          </div>
+
+          <div class="step-card special-step">
+            <div class="step-badge">🛡️</div>
+            <div class="step-content">
+              <h3>🛡️ Thẻ Bị Động: Khiên & Phản Đòn</h3>
+              <p><strong>Khiên</strong> và <strong>Phản Đòn</strong> không dùng thủ công. Chúng luôn nằm trong túi để <strong>tự động kích hoạt khi có kẻ địch tấn công/debuff bạn</strong>! Bạn chỉ có thể bỏ chúng bằng cách kéo vào Thùng Rác.</p>
+            </div>
+          </div>
+
+          <div class="step-card special-step">
+            <div class="step-badge">👑</div>
+            <div class="step-content">
+              <h3>🧩 Thần Bài Exodia: 5 Mảnh Vỡ Cổ Đại</h3>
+              <p>Có 5 thẻ Mảnh Vỡ (Shard 1 -> 5). Ai tích lũy đủ cả 5 mảnh vỡ trên tay sẽ <strong>CHIẾN THẮNG NGAY LẬP TỨC</strong> mà không cần chiếm đủ đất!</p>
+            </div>
+          </div>
+
+          <!-- CARDS CATALOG ACCORDION -->
+          <div class="step-card">
+            <div class="step-badge">🃏</div>
+            <div class="step-content">
+              <h3>📚 Danh Mục 22 Thẻ Bài Ma Thuật</h3>
+              <div class="cards-catalog-grid" id="cardsCatalogGrid">
+                <!-- Dynamically populated card catalog -->
+              </div>
             </div>
           </div>
 
@@ -394,83 +544,15 @@
       </div>
     </div>
 
-    <!-- MODAL 2: PAUSE MODAL -->
-    <div id="pauseModal" class="modal-backdrop hidden">
-      <div class="modal-card glassmorphism text-center">
-        <h2>⏸️ TẠM DỪNG TRẬN ĐẤU</h2>
-        <p>Hít một hơi thật sâu rồi tiếp tục chinh phục bản đồ!</p>
-        <div class="modal-actions-col">
-          <button class="btn-primary" id="btnResume">TIẾP TỤC CHƠI</button>
-          <button class="btn-secondary" id="btnRestartFromPause">CHƠI LẠI TRẬN NÀY</button>
-          <button class="btn-secondary" id="btnExitToLobby">VỀ SẢNH CHỜ</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- MODAL 3: GAME OVER / VICTORY MODAL -->
-    <div id="gameOverModal" class="modal-backdrop hidden">
-      <div class="modal-card glassmorphism gameover-card text-center">
-        <div id="goBadge" class="go-badge">KẾT THÚC TRẬN ĐẤU</div>
-        <h2 id="goTitle" class="go-title">CHIẾN THẮNG BÁ CHỦ!</h2>
-        <p id="goSubtitle" class="go-subtitle">Bạn đã làm chủ phần lớn lãnh thổ trên bàn cờ!</p>
-
-        <div class="go-stats-grid">
-          <div class="go-stat-box">
-            <div class="go-stat-label">Lãnh thổ kiểm soát</div>
-            <div class="go-stat-val text-teal" id="goTerritory">0.0%</div>
-          </div>
-          <div class="go-stat-box">
-            <div class="go-stat-label">Điểm số đạt được</div>
-            <div class="go-stat-val text-yellow" id="goScore">0</div>
-          </div>
-          <div class="go-stat-box">
-            <div class="go-stat-label">Bot đã hạ gục</div>
-            <div class="go-stat-val text-coral" id="goKills">0</div>
-          </div>
-          <div class="go-stat-box">
-            <div class="go-stat-label">Thời gian sống</div>
-            <div class="go-stat-val text-violet" id="goTime">00:00</div>
-          </div>
-        </div>
-
-        <div class="modal-actions-col">
-          <button class="btn-primary btn-pulse" id="btnPlayAgain">
-            <span class="btn-icon-lead">🔄</span> CHƠI LẠI NGAY
-          </button>
-          <button class="btn-secondary" id="btnChangeSettings">
-            <span class="btn-icon-lead">⚙️</span> ĐỔI MÀU & TÊN MỚI
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- MODAL 4: PASSWORD PROMPT FOR PRIVATE ROOMS -->
-    <div id="passwordModal" class="modal-backdrop hidden">
-      <div class="modal-card glassmorphism text-center">
-        <h2>🔒 PHÒNG NÀY CÓ MẬT KHẨU</h2>
-        <p class="view-desc text-center">Chủ phòng đã khóa phòng này. Vui lòng nhập mật khẩu để tham gia:</p>
-        <div class="form-group mt-14">
-          <input type="password" id="inputRoomPassword" placeholder="Nhập mật khẩu phòng..." autocomplete="off" />
-          <div id="passwordErrorText" class="text-coral mt-8"></div>
-        </div>
-        <div class="modal-actions-col">
-          <button class="btn-primary" id="btnSubmitPassword">XÁC NHẬN VÀO PHÒNG</button>
-          <button class="btn-secondary" id="btnCancelPassword">HỦY</button>
-        </div>
-      </div>
-    </div>
-
   </div>
 
-  <!-- MQTT Client for Public Room Discovery on Serverless Vercel -->
-  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
-  <!-- WebRTC PeerJS for Serverless P2P Online Multiplayer -->
-  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-  <!-- Audio Synthesizer -->
+  <!-- SCRIPTS -->
+  <!-- External P2P Libraries (PeerJS & MQTT Discovery) -->
+  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+  <script src="https://unpkg.com/mqtt@5.3.4/dist/mqtt.min.js"></script>
+  <!-- Game logic -->
   <script src="audio.js"></script>
-  <!-- Network Manager -->
   <script src="network.js"></script>
-  <!-- Core Game Engine -->
   <script src="game.js"></script>
 </body>
 </html>
