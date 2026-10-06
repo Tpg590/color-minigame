@@ -535,11 +535,16 @@ class ColorSpillGame {
     // Leaderboard collapse toggle on Mobile
     const btnToggleLb = document.getElementById('btnToggleLb');
     const liveLb = document.getElementById('liveLeaderboard');
-    if (btnToggleLb && liveLb) {
-      btnToggleLb.addEventListener('click', () => {
+    const lbHeader = document.getElementById('lbHeader');
+    if (liveLb) {
+      const toggleLb = () => {
         liveLb.classList.toggle('lb-collapsed');
-        btnToggleLb.textContent = liveLb.classList.contains('lb-collapsed') ? '▸' : '▾';
-      });
+        if (btnToggleLb) {
+          btnToggleLb.textContent = liveLb.classList.contains('lb-collapsed') ? '▸' : '▾';
+        }
+      };
+      if (btnToggleLb) btnToggleLb.addEventListener('click', (e) => { e.stopPropagation(); toggleLb(); });
+      if (lbHeader) lbHeader.addEventListener('click', toggleLb);
     }
 
     // Toggle virtual D-pad buttons
@@ -627,6 +632,24 @@ class ColorSpillGame {
       });
     });
 
+    // Touch slide/drag support across D-pad directional buttons
+    const vDpad = document.getElementById('virtualDpad');
+    if (vDpad) {
+      let lastTouchDir = null;
+      vDpad.addEventListener('touchmove', (e) => {
+        if (!e.touches || e.touches.length === 0) return;
+        const touch = e.touches[0];
+        const elem = document.elementFromPoint(touch.clientX, touch.clientY);
+        const btn = elem ? elem.closest('.dpad-btn') : null;
+        if (btn && btn.dataset.dir && btn.dataset.dir !== lastTouchDir) {
+          lastTouchDir = btn.dataset.dir;
+          this.handleDirectionInput(btn.dataset.dir);
+        }
+      }, { passive: true });
+      vDpad.addEventListener('touchend', () => { lastTouchDir = null; }, { passive: true });
+      vDpad.addEventListener('touchcancel', () => { lastTouchDir = null; }, { passive: true });
+    }
+
     // Mobile Canvas Touch Swipe Gesture Detection
     let touchStartX = 0;
     let touchStartY = 0;
@@ -702,8 +725,11 @@ class ColorSpillGame {
   }
 
   resizeCanvas() {
-    const maxSize = Math.min(window.innerWidth - 20, 680);
-    const size = Math.max(320, maxSize);
+    const isMobile = window.innerWidth <= 900;
+    const maxDimension = isMobile 
+      ? Math.min(window.innerWidth - 16, Math.floor(window.innerHeight * 0.46), 440)
+      : Math.min(window.innerWidth - 20, 680);
+    const size = Math.max(300, maxDimension);
     this.canvas.width = size;
     this.canvas.height = size;
   }
@@ -730,6 +756,7 @@ class ColorSpillGame {
     clearInterval(this.hostBroadcastInterval);
     this.network.disconnect();
 
+    document.body.classList.remove('in-game');
     document.getElementById('setupScreen').classList.remove('hidden');
     document.getElementById('gameScreen').classList.add('hidden');
     document.getElementById('gameHud').classList.add('hidden');
@@ -797,11 +824,19 @@ class ColorSpillGame {
     this.elapsedSeconds = 0;
     this.gameStartTime = Date.now();
 
+    document.body.classList.add('in-game');
     document.getElementById('setupScreen').classList.add('hidden');
     document.getElementById('gameScreen').classList.remove('hidden');
     document.getElementById('gameHud').classList.remove('hidden');
     document.getElementById('pauseModal').classList.add('hidden');
     document.getElementById('gameOverModal').classList.add('hidden');
+
+    if (window.innerWidth <= 900) {
+      const liveLb = document.getElementById('liveLeaderboard');
+      const btnToggleLb = document.getElementById('btnToggleLb');
+      if (liveLb) liveLb.classList.add('lb-collapsed');
+      if (btnToggleLb) btnToggleLb.textContent = '▸';
+    }
 
     this.grid = matchData.grid;
     this.players = matchData.players;
@@ -853,11 +888,19 @@ class ColorSpillGame {
     this.elapsedSeconds = 0;
     this.gameStartTime = Date.now();
 
+    document.body.classList.add('in-game');
     document.getElementById('setupScreen').classList.add('hidden');
     document.getElementById('gameScreen').classList.remove('hidden');
     document.getElementById('gameHud').classList.remove('hidden');
     document.getElementById('pauseModal').classList.add('hidden');
     document.getElementById('gameOverModal').classList.add('hidden');
+
+    if (window.innerWidth <= 900) {
+      const liveLb = document.getElementById('liveLeaderboard');
+      const btnToggleLb = document.getElementById('btnToggleLb');
+      if (liveLb) liveLb.classList.add('lb-collapsed');
+      if (btnToggleLb) btnToggleLb.textContent = '▸';
+    }
 
     // Init Big 56x56 Grid
     this.grid = [];
@@ -1658,6 +1701,12 @@ class ColorSpillGame {
       pct: ((tileCounts[p.id] / totalTiles) * 100).toFixed(1)
     })).sort((a, b) => parseFloat(b.pct) - parseFloat(a.pct));
 
+    const myRankIdx = sorted.findIndex(p => p.id === this.myPlayerId);
+    const lbMyRankPill = document.getElementById('lbMyRankPill');
+    if (lbMyRankPill && myRankIdx !== -1) {
+      lbMyRankPill.textContent = `#${myRankIdx + 1} (${sorted[myRankIdx].pct}%)`;
+    }
+
     const lbList = document.getElementById('lbList');
     lbList.innerHTML = '';
     sorted.forEach((item, rank) => {
@@ -1994,27 +2043,28 @@ class ColorSpillGame {
       ctx.save();
       ctx.globalAlpha = bannerAlpha;
 
-      const bw = Math.min(this.canvas.width - 40, 480);
-      const bh = 42;
+      const isMobileCanvas = this.canvas.width < 440;
+      const bw = Math.min(this.canvas.width - 20, 480);
+      const bh = isMobileCanvas ? 38 : 42;
       const bx = (this.canvas.width - bw) / 2;
-      const by = 20;
+      const by = 12;
 
       ctx.fillStyle = 'rgba(6, 6, 8, 0.92)';
       ctx.strokeStyle = '#FFE66D';
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 1.5;
       ctx.beginPath();
       ctx.roundRect(bx, by, bw, bh, 10);
       ctx.fill();
       ctx.stroke();
 
-      ctx.font = 'bold 12px Montserrat, sans-serif';
+      ctx.font = isMobileCanvas ? 'bold 10px Montserrat, sans-serif' : 'bold 12px Montserrat, sans-serif';
       ctx.fillStyle = '#FFE66D';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(`🎯 BÀN CỜ 56x56 • CAMERA THEO DÕI BẠN • VƯƠNG MIỆN 👑`, this.canvas.width / 2, by + 14);
-      ctx.font = '10px Montserrat, sans-serif';
+      ctx.fillText(isMobileCanvas ? '🎯 BÀN CỜ 56x56 • ĐỊNH VỊ BẰNG RADAR 👑' : '🎯 BÀN CỜ 56x56 • CAMERA THEO DÕI BẠN • VƯƠNG MIỆN 👑', this.canvas.width / 2, by + (isMobileCanvas ? 12 : 14));
+      ctx.font = isMobileCanvas ? '8.5px Montserrat, sans-serif' : '10px Montserrat, sans-serif';
       ctx.fillStyle = '#e2e8f0';
-      ctx.fillText(`Quan sát Radar ở góc để định vị toàn bộ bản đồ!`, this.canvas.width / 2, by + 28);
+      ctx.fillText('Quan sát Radar ở góc để định vị toàn bộ bản đồ!', this.canvas.width / 2, by + (isMobileCanvas ? 25 : 28));
       ctx.restore();
     }
   }

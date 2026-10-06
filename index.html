@@ -287,12 +287,28 @@
             <div id="activePowerups" class="active-powerups-overlay"></div>
           </div>
 
+          <!-- ON-SCREEN MOBILE CONTROLS (Placed right below canvas on mobile) -->
+          <div class="mobile-controls" id="mobileControls">
+            <div class="mobile-control-bar">
+              <span class="mobile-hint">👆 <strong>Vuốt màn hình</strong> hoặc <strong>chạm phím ảo</strong></span>
+              <button id="btnToggleDpad" type="button" class="btn-dpad-toggle">🕹️ Phím: Bật</button>
+            </div>
+            <div class="dpad" id="virtualDpad">
+              <button class="dpad-btn dpad-up" data-dir="up" aria-label="Lên">▲</button>
+              <button class="dpad-btn dpad-left" data-dir="left" aria-label="Trái">◀</button>
+              <div class="dpad-center"></div>
+              <button class="dpad-btn dpad-right" data-dir="right" aria-label="Phải">▶</button>
+              <button class="dpad-btn dpad-down" data-dir="down" aria-label="Xuống">▼</button>
+            </div>
+          </div>
+
           <!-- SIDE LEADERBOARD -->
           <aside class="live-leaderboard glassmorphism" id="liveLeaderboard">
             <div class="lb-header" id="lbHeader">
               <div class="lb-header-title">
                 <span class="lb-icon">🏆</span>
                 <span>BẢNG XẾP HẠNG</span>
+                <span id="lbMyRankPill" class="lb-my-rank-pill">#--</span>
               </div>
               <button id="btnToggleLb" class="btn-lb-toggle" type="button" aria-label="Thu gọn hoặc mở rộng bảng xếp hạng">▾</button>
             </div>
@@ -312,20 +328,6 @@
               </div>
             </div>
           </aside>
-        </div>
-
-        <!-- ON-SCREEN MOBILE CONTROLS -->
-        <div class="mobile-controls" id="mobileControls">
-          <div class="mobile-control-bar">
-            <span class="mobile-hint">👆 <strong>Vuốt màn hình</strong> hoặc <strong>chạm phím ảo</strong></span>
-            <button id="btnToggleDpad" type="button" class="btn-dpad-toggle">🕹️ Phím: Bật</button>
-          </div>
-          <div class="dpad" id="virtualDpad">
-            <button class="dpad-btn dpad-up" data-dir="up" aria-label="Lên">▲</button>
-            <button class="dpad-btn dpad-left" data-dir="left" aria-label="Trái">◀</button>
-            <button class="dpad-btn dpad-right" data-dir="right" aria-label="Phải">▶</button>
-            <button class="dpad-btn dpad-down" data-dir="down" aria-label="Xuống">▼</button>
-          </div>
         </div>
       </section>
 

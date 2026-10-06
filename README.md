@@ -36,7 +36,7 @@ Dự án là Static Web App thuần túy nên triển khai lên Vercel chỉ m�
 ### Cách 1: Dùng Vercel CLI (Nhanh nhất)
 1. Mở Terminal tại thư mục `mini-game`:
    ```bash
-   cd c:/Users/trilt/Documents/Study/EXE101/mini-game
+   cd c:/Users/.../mini-game
    ```
 2. Chạy lệnh:
    ```bash
