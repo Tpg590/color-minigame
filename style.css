@@ -642,6 +642,222 @@ input[type="text"]:focus, input[type="password"]:focus {
   margin-left: auto;
 }
 
+/* Privacy Badges */
+.badge-privacy {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 50px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+}
+.badge-public {
+  background: rgba(0, 229, 255, 0.15);
+  color: var(--accent-cyan);
+  border: 1px solid rgba(0, 229, 255, 0.35);
+}
+.badge-private {
+  background: rgba(255, 56, 100, 0.18);
+  color: #ff6b8b;
+  border: 1px solid rgba(255, 56, 100, 0.4);
+}
+
+/* Online Find Room View */
+.find-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.find-section label {
+  font-size: 0.76rem;
+  font-weight: 800;
+  color: var(--text-muted);
+  letter-spacing: 0.6px;
+}
+.section-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.divider-text {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  margin: 12px 0;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+.divider-text::before,
+.divider-text::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+.divider-text span {
+  padding: 0 10px;
+}
+
+/* Direct Join Status feedback */
+.join-status-text {
+  min-height: 22px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  margin-top: 6px;
+  transition: all 0.25s ease;
+}
+.status-connecting {
+  color: #ffd166;
+}
+.status-success {
+  color: #00e676;
+}
+.status-error {
+  color: #ff5252;
+  background: rgba(255, 82, 82, 0.12);
+  border: 1px solid rgba(255, 82, 82, 0.3);
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+.spinner-inline {
+  display: inline-block;
+  animation: pulseRotate 1s infinite alternate;
+}
+@keyframes pulseRotate {
+  0% { transform: scale(0.95); opacity: 0.7; }
+  100% { transform: scale(1.15); opacity: 1; }
+}
+
+/* Rotating icon animation */
+.rotating {
+  animation: rotateIcon 0.6s linear;
+}
+@keyframes rotateIcon {
+  100% { transform: rotate(360deg); }
+}
+
+/* Public Rooms Container */
+.rooms-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding-right: 4px;
+  scrollbar-width: thin;
+}
+.rooms-container::-webkit-scrollbar {
+  width: 5px;
+}
+.rooms-container::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+
+/* Room Card */
+.room-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 10px 14px;
+  transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.room-card:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(0, 229, 255, 0.4);
+  transform: translateY(-1px);
+}
+.room-card-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.room-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+}
+.room-name {
+  font-weight: 800;
+  font-size: 0.88rem;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.room-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  flex-wrap: wrap;
+}
+.room-code-tag {
+  background: rgba(0, 0, 0, 0.3);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: var(--font-title);
+  color: var(--accent-cyan);
+}
+.btn-room-join {
+  flex-shrink: 0;
+  padding: 7px 14px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  border-radius: 50px;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.btn-room-join.disabled {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+  cursor: not-allowed;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Empty Rooms State */
+.rooms-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 24px 16px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  gap: 6px;
+}
+.empty-radar {
+  font-size: 2rem;
+  margin-bottom: 2px;
+  animation: pulseRotate 2s infinite ease-in-out;
+}
+.empty-title {
+  font-weight: 800;
+  font-size: 0.86rem;
+  color: var(--text-main);
+}
+.empty-sub {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  max-width: 320px;
+  line-height: 1.4;
+}
+
 /* ========================================================
    SCREEN 2: BOARD GAME ARENA (ZERO OVERFLOW, PERFECT FIT)
    ======================================================== */

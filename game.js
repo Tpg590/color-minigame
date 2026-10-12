@@ -268,6 +268,7 @@ const PLAYER_PROFILES = [
 class ColorSpillGame {
   constructor() {
     this.network = new NetworkManager(this);
+    this.network.onRoomsUpdated = (rooms) => this.renderPublicRooms(rooms);
 
     // Game Mode & Settings
     this.isMatchActive = false;
@@ -365,6 +366,26 @@ class ColorSpillGame {
       });
     });
 
+    // Room Privacy segmented control (Public vs Private)
+    document.querySelectorAll('#roomPrivacyControl .seg-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        sound.playClick();
+        document.querySelectorAll('#roomPrivacyControl .seg-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const isPrivate = btn.dataset.privacy === 'private';
+        const pwdGroup = document.getElementById('roomPasswordGroup');
+        if (pwdGroup) {
+          if (isPrivate) {
+            pwdGroup.classList.remove('hidden');
+            const pwdInput = document.getElementById('createRoomPasswordInput');
+            if (pwdInput) pwdInput.focus();
+          } else {
+            pwdGroup.classList.add('hidden');
+          }
+        }
+      });
+    });
+
     // Navigation buttons
     document.getElementById('btnNavOffline').addEventListener('click', () => {
       sound.playClick();
@@ -377,7 +398,20 @@ class ColorSpillGame {
     document.getElementById('btnNavFindRoom').addEventListener('click', () => {
       sound.playClick();
       this.showView('viewFindRoom');
+      this.network.queryActiveRooms();
+      this.renderPublicRooms(this.network.getCleanRoomList());
     });
+
+    // Refresh Public Rooms button
+    const btnRefresh = document.getElementById('btnRefreshRooms');
+    if (btnRefresh) {
+      btnRefresh.addEventListener('click', () => {
+        sound.playClick();
+        btnRefresh.classList.add('rotating');
+        setTimeout(() => btnRefresh.classList.remove('rotating'), 600);
+        this.network.queryActiveRooms();
+      });
+    }
 
     // Back buttons
     document.querySelectorAll('.btn-back').forEach(btn => {
@@ -396,20 +430,46 @@ class ColorSpillGame {
     // Create Room
     document.getElementById('btnConfirmCreateRoom').addEventListener('click', () => {
       sound.playClick();
-      const roomName = document.getElementById('createRoomNameInput').value;
+      const roomName = (document.getElementById('createRoomNameInput').value || '').trim();
       const isPrivate = document.querySelector('#roomPrivacyControl .seg-btn.active').dataset.privacy === 'private';
-      const password = document.getElementById('createRoomPasswordInput').value;
-      const myName = document.getElementById('playerNameInput').value || 'ChromaKnight';
+      const password = (document.getElementById('createRoomPasswordInput').value || '').trim();
+      const myName = (document.getElementById('playerNameInput').value || '').trim() || 'ChromaKnight';
+
+      if (isPrivate && !password) {
+        alert('⚠️ Vui lòng nhập mật khẩu cho phòng riêng tư!');
+        const pwdInput = document.getElementById('createRoomPasswordInput');
+        if (pwdInput) pwdInput.focus();
+        return;
+      }
+
+      const activeColor = document.querySelector('.color-choice.active');
+      const colorIdx = activeColor ? parseInt(activeColor.dataset.colorIdx, 10) : 0;
+      const playerColor = PLAYER_PROFILES[colorIdx] ? PLAYER_PROFILES[colorIdx].color : PLAYER_PROFILES[0].color;
+
+      const createBtn = document.getElementById('btnConfirmCreateRoom');
+      createBtn.disabled = true;
+      createBtn.innerHTML = '<span class="btn-icon-lead">⏳</span> ĐANG TẠO PHÒNG...';
 
       this.network.createRoom(
-        { roomName, isPrivate, password },
-        { name: myName, color: PLAYER_PROFILES[0].color },
+        { roomName: roomName || `Phòng của ${myName}`, isPrivate, password },
+        { name: myName, color: playerColor },
         (code) => {
+          createBtn.disabled = false;
+          createBtn.innerHTML = '<span class="btn-icon-lead">🚀</span> TẠO PHÒNG & LẤY MÃ CODE';
           document.getElementById('displayRoomCode').innerText = code;
+          const hostBadge = document.getElementById('hostPrivacyBadge');
+          if (hostBadge) {
+            hostBadge.innerText = isPrivate ? '🔒 Riêng Tư' : '🌐 Công Khai';
+            hostBadge.className = isPrivate ? 'badge-privacy badge-private' : 'badge-privacy badge-public';
+          }
           this.showView('viewHostWaiting');
           this.updateHostLobbyUI();
         },
-        (err) => alert('Lỗi tạo phòng: ' + err)
+        (err) => {
+          createBtn.disabled = false;
+          createBtn.innerHTML = '<span class="btn-icon-lead">🚀</span> TẠO PHÒNG & LẤY MÃ CODE';
+          alert('Lỗi tạo phòng: ' + err);
+        }
       );
     });
 
@@ -427,24 +487,26 @@ class ColorSpillGame {
     // Direct Join
     document.getElementById('btnJoinDirect').addEventListener('click', () => {
       sound.playClick();
-      const code = document.getElementById('joinDirectCodeInput').value;
-      if (!code) return;
-      const myName = document.getElementById('playerNameInput').value || 'GuestPlayer';
-
-      document.getElementById('directJoinStatus').innerText = 'Đang kết nối tới phòng...';
-      this.network.joinRoom(
-        code,
-        '',
-        { name: myName, color: PLAYER_PROFILES[1].color },
-        (c) => {
-          document.getElementById('guestRoomCodeTitle').innerText = c;
-          this.showView('viewGuestWaiting');
-        },
-        (err) => {
-          document.getElementById('directJoinStatus').innerText = 'Không thể vào phòng: ' + err;
-        }
-      );
+      const codeInput = document.getElementById('joinDirectCodeInput');
+      const code = (codeInput ? codeInput.value : '').trim();
+      if (!code) {
+        alert('Vui lòng nhập mã phòng (Ví dụ: CSP-XXXX hoặc XXXX)!');
+        if (codeInput) codeInput.focus();
+        return;
+      }
+      this.executeJoinRoom(code, '');
     });
+
+    // Enter key inside Direct Join Input
+    const directCodeInput = document.getElementById('joinDirectCodeInput');
+    if (directCodeInput) {
+      directCodeInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          document.getElementById('btnJoinDirect').click();
+        }
+      });
+    }
 
     document.getElementById('btnLeaveGuest').addEventListener('click', () => {
       sound.playClick();
@@ -2592,6 +2654,144 @@ class ColorSpillGame {
 
     this.updateHUD();
     this.renderHandCardsUI();
+  }
+
+  // ------------------------------------------------------
+  // ONLINE ROOM DISCOVERY & JOIN HELPERS
+  // ------------------------------------------------------
+  executeJoinRoom(code, password = '') {
+    const cleanCode = (code || '').trim().toUpperCase().replace(/^CSP-/, '').replace(/[^A-Z0-9]/g, '');
+    if (!cleanCode) return;
+
+    const myName = (document.getElementById('playerNameInput').value || '').trim() || 'Người Chơi';
+    const activeColor = document.querySelector('.color-choice.active');
+    const colorIdx = activeColor ? parseInt(activeColor.dataset.colorIdx, 10) : 1;
+    const playerColor = PLAYER_PROFILES[colorIdx] ? PLAYER_PROFILES[colorIdx].color : PLAYER_PROFILES[1].color;
+
+    const statusEl = document.getElementById('directJoinStatus');
+    const joinBtn = document.getElementById('btnJoinDirect');
+
+    if (joinBtn) joinBtn.disabled = true;
+    if (statusEl) {
+      statusEl.innerHTML = `<span class="spinner-inline">⏳</span> Đang tìm kiếm & kết nối tới phòng <strong class="text-teal">${cleanCode}</strong>...`;
+      statusEl.className = 'join-status-text status-connecting';
+    }
+
+    this.network.joinRoom(
+      cleanCode,
+      password,
+      { name: myName, color: playerColor },
+      (c) => {
+        if (joinBtn) joinBtn.disabled = false;
+        if (statusEl) {
+          statusEl.innerHTML = `<span class="text-green">✅ Kết nối thành công tới phòng ${c}!</span>`;
+          statusEl.className = 'join-status-text status-success';
+        }
+        document.getElementById('guestRoomCodeTitle').innerText = c;
+        this.showView('viewGuestWaiting');
+      },
+      (err) => {
+        if (joinBtn) joinBtn.disabled = false;
+        if (statusEl) {
+          statusEl.innerHTML = `<span class="status-error-badge">❌</span> ${this.escapeHtml(String(err))}`;
+          statusEl.className = 'join-status-text status-error';
+        }
+
+        // If rejection was due to password, prompt user immediately
+        const errStr = String(err).toLowerCase();
+        if (errStr.includes('mật khẩu') || errStr.includes('password')) {
+          setTimeout(() => {
+            const retryPass = prompt(`🔒 Phòng "${cleanCode}" yêu cầu mật khẩu.\nVui lòng nhập mật khẩu phòng:`);
+            if (retryPass !== null && retryPass.trim() !== '') {
+              this.executeJoinRoom(cleanCode, retryPass.trim());
+            }
+          }, 350);
+        }
+      }
+    );
+  }
+
+  handleJoinFromRoomList(code, isPrivate) {
+    let password = '';
+    if (isPrivate) {
+      const input = prompt(`🔒 Phòng "${code}" được đặt chế độ Riêng Tư.\nVui lòng nhập mật khẩu phòng:`);
+      if (input === null) return; // User cancelled
+      password = input.trim();
+      if (!password) {
+        alert('Mật khẩu không được để trống!');
+        return;
+      }
+    }
+    const codeInput = document.getElementById('joinDirectCodeInput');
+    if (codeInput) codeInput.value = code;
+    this.executeJoinRoom(code, password);
+  }
+
+  renderPublicRooms(rooms) {
+    const container = document.getElementById('publicRoomsContainer');
+    if (!container) return;
+
+    if (!rooms || rooms.length === 0) {
+      container.innerHTML = `
+        <div class="rooms-empty">
+          <div class="empty-radar">📡</div>
+          <div class="empty-title">Chưa có phòng nào đang mở</div>
+          <div class="empty-sub">Hãy bấm nút <strong>🔄 Làm mới</strong> hoặc <strong>Tạo phòng online</strong> ở menu chính và gửi mã cho bạn bè!</div>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = rooms.map(room => {
+      const isPrivate = !!room.isPrivate;
+      const count = room.count || 1;
+      const max = room.max || 4;
+      const isFull = count >= max;
+
+      return `
+        <div class="room-card" data-code="${room.code}">
+          <div class="room-card-info">
+            <div class="room-title-row">
+              <span class="room-name">${this.escapeHtml(room.name || 'Phòng ' + room.code)}</span>
+              <span class="badge-privacy ${isPrivate ? 'badge-private' : 'badge-public'}">
+                ${isPrivate ? '🔒 Riêng Tư' : '🌐 Công Khai'}
+              </span>
+            </div>
+            <div class="room-meta-row">
+              <span class="room-host">👑 Host: <strong>${this.escapeHtml(room.hostName || 'Chủ phòng')}</strong></span>
+              <span class="room-capacity ${isFull ? 'text-coral' : 'text-teal'}">
+                👥 ${count}/${max} người
+              </span>
+              <span class="room-code-tag">Mã: <strong>${room.code}</strong></span>
+            </div>
+          </div>
+          <button type="button" class="btn-room-join ${isFull ? 'disabled' : (isPrivate ? 'btn-secondary' : 'btn-primary')}"
+            ${isFull ? 'disabled' : ''} data-code="${room.code}" data-private="${isPrivate}">
+            ${isFull ? 'ĐÃ ĐẦY' : (isPrivate ? '🔒 Vào Phòng' : '👉 Vào Ngay')}
+          </button>
+        </div>
+      `;
+    }).join('');
+
+    container.querySelectorAll('.btn-room-join:not(.disabled)').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        sound.playClick();
+        const code = btn.dataset.code;
+        const isPrivate = btn.dataset.private === 'true';
+        this.handleJoinFromRoomList(code, isPrivate);
+      });
+    });
+  }
+
+  escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
   }
 }
 
