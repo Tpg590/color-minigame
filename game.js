@@ -2290,7 +2290,21 @@ class ColorSpillGame {
 
       case 'ShowCard':
         if (target) {
-          this.openPeepModal(target);
+          if (!this.network.isOnline) {
+            this.openPeepModal(target);
+          } else if (this.network.isHost) {
+            if (attacker.id === this.localPlayerId) {
+              this.openPeepModal(target);
+            }
+            this.network.broadcastToAll({
+              type: 'SHOW_CARD_PEEP',
+              attackerId: attacker.id,
+              attackerName: attacker.name,
+              targetId: target.id,
+              targetName: target.name,
+              cards: target.handCards || []
+            });
+          }
         }
         break;
 
@@ -2386,69 +2400,191 @@ class ColorSpillGame {
       return;
     }
 
-    if (attacker.isHuman) {
-      // Create shuffled shadow deck of victim's cards
-      const shuffledDeck = victim.handCards.map((c, i) => ({ card: c, originalIndex: i }));
-      this.shuffle(shuffledDeck);
+    if (!this.network.isOnline) {
+      if (attacker.isHuman) {
+        // Create shuffled shadow deck of victim's cards
+        const shuffledDeck = victim.handCards.map((c, i) => ({ card: c, originalIndex: i }));
+        this.shuffle(shuffledDeck);
 
-      const modal = document.getElementById('stealCardModal');
-      const cardsRow = document.getElementById('mysteryCardsRow');
-      const revealBox = document.getElementById('stealRevealResult');
-      revealBox.classList.add('hidden');
-      cardsRow.innerHTML = '';
+        const modal = document.getElementById('stealCardModal');
+        const cardsRow = document.getElementById('mysteryCardsRow');
+        const revealBox = document.getElementById('stealRevealResult');
+        revealBox.classList.add('hidden');
+        cardsRow.innerHTML = '';
 
-      document.getElementById('stealModalSub').innerText = `Bài trên tay của ${victim.name} (${victim.handCards.length} lá) đã được xáo trộn ngẫu nhiên! Hãy chọn 1 lá có dấu ❓ để cướp:`;
+        document.getElementById('stealModalSub').innerText = `Bài trên tay của ${victim.name} (${victim.handCards.length} lá) đã được xáo trộn ngẫu nhiên! Hãy chọn 1 lá có dấu ❓ để cướp:`;
 
-      shuffledDeck.forEach((item, slotIdx) => {
-        const mysteryCard = document.createElement('div');
-        mysteryCard.className = 'mystery-card-item';
-        mysteryCard.innerHTML = `
-          <div class="mystery-question-mark">?</div>
-          <div class="mystery-card-sub">LÁ SỐ ${slotIdx + 1}</div>
-        `;
+        shuffledDeck.forEach((item, slotIdx) => {
+          const mysteryCard = document.createElement('div');
+          mysteryCard.className = 'mystery-card-item';
+          mysteryCard.innerHTML = `
+            <div class="mystery-question-mark">?</div>
+            <div class="mystery-card-sub">LÁ SỐ ${slotIdx + 1}</div>
+          `;
 
-        mysteryCard.addEventListener('click', () => {
-          sound.playDraw();
-          // Steal this card
-          const stolenCard = victim.handCards.splice(item.originalIndex, 1)[0];
-          attacker.handCards.push(stolenCard);
+          mysteryCard.addEventListener('click', () => {
+            sound.playDraw();
+            cardsRow.querySelectorAll('.mystery-card-item').forEach(c => c.style.pointerEvents = 'none');
+            const stolenCard = victim.handCards.splice(item.originalIndex, 1)[0];
+            attacker.handCards.push(stolenCard);
 
-          // Reveal card
-          document.getElementById('stealRevealImg').src = stolenCard.icon;
-          document.getElementById('stealRevealName').innerText = stolenCard.name;
-          document.getElementById('stealRevealText').innerText = `🎉 Bạn đã trộm thành công lá [${stolenCard.name}] từ ${victim.name}!`;
-          revealBox.classList.remove('hidden');
+            document.getElementById('stealRevealImg').src = stolenCard.icon;
+            document.getElementById('stealRevealName').innerText = stolenCard.name;
+            document.getElementById('stealRevealText').innerText = `🎉 Bạn đã trộm thành công lá [${stolenCard.name}] từ ${victim.name}!`;
+            revealBox.classList.remove('hidden');
 
-          this.checkExodiaWin(attacker.id);
-          this.updateHUD();
-          this.renderHandCardsUI();
+            this.checkExodiaWin(attacker.id);
+            this.updateHUD();
+            this.renderHandCardsUI();
 
-          setTimeout(() => {
-            modal.classList.add('hidden');
-            this.setBanner(`🕵️ TRỘM THÀNH CÔNG!`, `Bạn đã trộm được thẻ [${stolenCard.name}] từ tay ${victim.name}!`);
-          }, 1800);
+            setTimeout(() => {
+              modal.classList.add('hidden');
+              this.setBanner(`🕵️ TRỘM THÀNH CÔNG!`, `Bạn đã trộm được thẻ [${stolenCard.name}] từ tay ${victim.name}!`);
+            }, 1800);
+          });
+
+          cardsRow.appendChild(mysteryCard);
         });
 
-        cardsRow.appendChild(mysteryCard);
-      });
+        modal.classList.remove('hidden');
+      } else {
+        const randIdx = Math.floor(Math.random() * victim.handCards.length);
+        const stolen = victim.handCards.splice(randIdx, 1)[0];
+        attacker.handCards.push(stolen);
+        this.setBanner(`🕵️ ${attacker.name} TRỘM BÀI!`, `${attacker.name} đã lấy cắp 1 lá bài bí mật từ tay ${victim.name}!`);
+        this.checkExodiaWin(attacker.id);
+        this.updateHUD();
+        this.renderHandCardsUI();
+      }
+      return;
+    }
 
-      modal.classList.remove('hidden');
-    } else {
-      // Bot randomly steals 1 card
+    // Online Multiplayer Steal Card
+    if (!this.network.isHost) return;
+
+    if (!attacker.isHuman) {
       const randIdx = Math.floor(Math.random() * victim.handCards.length);
       const stolen = victim.handCards.splice(randIdx, 1)[0];
       attacker.handCards.push(stolen);
-      this.setBanner(`🕵️ ${attacker.name} TRỘM BÀI!`, `${attacker.name} đã lấy cắp 1 lá bài bí mật từ tay ${victim.name}!`);
+      this.setBanner(`🕵️ ${attacker.name} TRỘM BÀI!`, `${attacker.name} đã lấy cắp 1 lá bài từ tay ${victim.name}!`);
       this.checkExodiaWin(attacker.id);
-      this.updateHUD();
-      this.renderHandCardsUI();
+      this.broadcastSnapshot();
+      return;
     }
+
+    const payload = {
+      type: 'STEAL_CARD_START',
+      attackerId: attacker.id,
+      attackerName: attacker.name,
+      victimId: victim.id,
+      victimName: victim.name,
+      cardCount: victim.handCards.length
+    };
+    this.network.broadcastToAll(payload);
+    this.onStealCardStart(payload);
+  }
+
+  onStealCardStart(data) {
+    if (this.localPlayerId !== data.attackerId) {
+      this.setBanner(`🕵️ TRỘM BÀI:`, `${data.attackerName} đang chọn 1 lá bài ngẫu nhiên để trộm từ ${data.victimName}!`);
+      return;
+    }
+
+    const modal = document.getElementById('stealCardModal');
+    const cardsRow = document.getElementById('mysteryCardsRow');
+    const revealBox = document.getElementById('stealRevealResult');
+    if (!modal || !cardsRow || !revealBox) return;
+
+    revealBox.classList.add('hidden');
+    cardsRow.innerHTML = '';
+    document.getElementById('stealModalSub').innerText = `Bài trên tay của ${data.victimName} (${data.cardCount} lá) đã được xáo trộn ngẫu nhiên! Hãy chọn 1 lá có dấu ❓ để cướp:`;
+
+    for (let slotIdx = 0; slotIdx < data.cardCount; slotIdx++) {
+      const mysteryCard = document.createElement('div');
+      mysteryCard.className = 'mystery-card-item';
+      mysteryCard.innerHTML = `
+        <div class="mystery-question-mark">?</div>
+        <div class="mystery-card-sub">LÁ SỐ ${slotIdx + 1}</div>
+      `;
+
+      mysteryCard.addEventListener('click', () => {
+        sound.playDraw();
+        cardsRow.querySelectorAll('.mystery-card-item').forEach(c => c.style.pointerEvents = 'none');
+
+        if (!this.network.isOnline) return;
+
+        if (this.network.isHost) {
+          this.handleStealCardPick(this.localPlayerId, data.victimId, slotIdx);
+        } else {
+          this.network.sendActionToHost({
+            type: 'STEAL_CARD_PICK',
+            victimId: data.victimId,
+            slotIdx: slotIdx
+          });
+        }
+      });
+
+      cardsRow.appendChild(mysteryCard);
+    }
+
+    modal.classList.remove('hidden');
+  }
+
+  handleStealCardPick(attackerId, victimId, slotIdx) {
+    const attacker = this.getPlayerById(attackerId);
+    const victim = this.getPlayerById(victimId);
+    if (!attacker || !victim || victim.handCards.length === 0) return;
+
+    const actualIdx = (slotIdx >= 0 && slotIdx < victim.handCards.length)
+      ? slotIdx
+      : Math.floor(Math.random() * victim.handCards.length);
+
+    const stolenCard = victim.handCards.splice(actualIdx, 1)[0];
+    attacker.handCards.push(stolenCard);
+
+    this.checkExodiaWin(attacker.id);
+    this.updateHUD();
+    this.renderHandCardsUI();
+
+    const revealPayload = {
+      type: 'STEAL_CARD_REVEAL',
+      attackerId: attacker.id,
+      attackerName: attacker.name,
+      victimId: victim.id,
+      victimName: victim.name,
+      stolenCard: stolenCard
+    };
+
+    this.network.broadcastToAll(revealPayload);
+    this.onStealCardReveal(revealPayload);
+
+    this.broadcastSnapshot();
+  }
+
+  onStealCardReveal(data) {
+    if (this.localPlayerId === data.attackerId) {
+      const modal = document.getElementById('stealCardModal');
+      const revealBox = document.getElementById('stealRevealResult');
+      if (modal && revealBox) {
+        document.getElementById('stealRevealImg').src = data.stolenCard.icon;
+        document.getElementById('stealRevealName').innerText = data.stolenCard.name;
+        document.getElementById('stealRevealText').innerText = `🎉 Bạn đã trộm thành công lá [${data.stolenCard.name}] từ ${data.victimName}!`;
+        revealBox.classList.remove('hidden');
+
+        setTimeout(() => {
+          modal.classList.add('hidden');
+        }, 2000);
+      }
+    }
+    this.setBanner(`🕵️ TRỘM THÀNH CÔNG!`, `${data.attackerName} đã lấy cắp thẻ [${data.stolenCard.name}] từ tay ${data.victimName}!`);
   }
 
   openPeepModal(targetPlayer) {
-    document.getElementById('peepTargetName').innerText = `Bài trên tay của ${targetPlayer.name} (${targetPlayer.handCards.length} lá):`;
+    if (!targetPlayer) return;
+    const cards = targetPlayer.handCards || [];
+    document.getElementById('peepTargetName').innerText = `Bài trên tay của ${targetPlayer.name} (${cards.length} lá):`;
     const gridEl = document.getElementById('peepCardsGrid');
-    gridEl.innerHTML = targetPlayer.handCards.map(c => `
+    gridEl.innerHTML = cards.map(c => `
       <div class="catalog-card-item">
         <img src="${c.icon}" class="catalog-card-img" />
         <div>
@@ -2461,29 +2597,261 @@ class ColorSpillGame {
     document.getElementById('peepCardsModal').classList.remove('hidden');
   }
 
+  onShowCardPeep(data) {
+    if (this.localPlayerId === data.attackerId || this.isSpectator) {
+      this.openPeepModal({
+        name: data.targetName,
+        handCards: data.cards || []
+      });
+      sound.playCard();
+    }
+    this.setBanner(`👁️ SOI BÀI:`, `${data.attackerName} đã soi toàn bộ ${data.cards ? data.cards.length : 0} lá bài trên tay của ${data.targetName}!`);
+  }
+
   // ------------------------------------------------------
-  // 12. ROCK PAPER SCISSORS MINIGAME
+  // 12. ROCK PAPER SCISSORS MINIGAME (KÉO BÚA BAO ONLINE & OFFLINE)
   // ------------------------------------------------------
   startRPSMinigame(p1, p2) {
     this.rpsP1 = p1;
     this.rpsP2 = p2;
 
-    if (p1.isHuman) {
-      document.getElementById('rpsPromptText').innerText = `Thách đấu Oẳn Tù Tì với ${p2.name}! Hãy ra chiêu:`;
-      document.getElementById('rpsResultText').innerText = '';
-      document.getElementById('rpsModal').classList.remove('hidden');
-    } else {
-      const choices = ['rock', 'paper', 'scissors'];
-      const c1 = choices[Math.floor(Math.random() * 3)];
-      const c2 = choices[Math.floor(Math.random() * 3)];
-      this.resolveRPS(c1, c2);
+    if (!this.network.isOnline) {
+      if (p1.isHuman) {
+        document.getElementById('rpsPromptText').innerText = `Thách đấu Oẳn Tù Tì với ${p2.name}! Hãy ra chiêu:`;
+        document.getElementById('rpsResultText').innerText = '';
+        document.querySelectorAll('.rps-choice-btn').forEach(b => b.disabled = false);
+        document.getElementById('rpsModal').classList.remove('hidden');
+      } else {
+        const choices = ['rock', 'paper', 'scissors'];
+        const c1 = choices[Math.floor(Math.random() * 3)];
+        const c2 = choices[Math.floor(Math.random() * 3)];
+        this.resolveRPS(c1, c2);
+      }
+      return;
+    }
+
+    // ONLINE MULTIPLAYER RPS
+    if (!this.network.isHost) return;
+
+    this.activeRpsDuel = {
+      p1Id: p1.id,
+      p1Name: p1.name,
+      p2Id: p2.id,
+      p2Name: p2.name,
+      p1Choice: null,
+      p2Choice: null,
+      timer: null
+    };
+
+    const choices = ['rock', 'paper', 'scissors'];
+    if (!p1.isHuman) {
+      this.activeRpsDuel.p1Choice = choices[Math.floor(Math.random() * 3)];
+    }
+    if (!p2.isHuman) {
+      this.activeRpsDuel.p2Choice = choices[Math.floor(Math.random() * 3)];
+    }
+
+    const startPayload = {
+      type: 'RPS_START',
+      p1Id: p1.id,
+      p1Name: p1.name,
+      p2Id: p2.id,
+      p2Name: p2.name
+    };
+
+    this.network.broadcastToAll(startPayload);
+    this.onRPSStart(startPayload);
+
+    // 15s timeout auto-pick
+    this.activeRpsDuel.timer = setTimeout(() => {
+      if (!this.activeRpsDuel) return;
+      if (!this.activeRpsDuel.p1Choice) {
+        this.activeRpsDuel.p1Choice = choices[Math.floor(Math.random() * 3)];
+      }
+      if (!this.activeRpsDuel.p2Choice) {
+        this.activeRpsDuel.p2Choice = choices[Math.floor(Math.random() * 3)];
+      }
+      this.evaluateOnlineRPS();
+    }, 15000);
+
+    // If both were bots, evaluate immediately
+    if (this.activeRpsDuel.p1Choice && this.activeRpsDuel.p2Choice) {
+      this.evaluateOnlineRPS();
     }
   }
 
-  handleRPSChoice(humanChoice) {
-    const choices = ['rock', 'paper', 'scissors'];
-    const botChoice = choices[Math.floor(Math.random() * 3)];
-    this.resolveRPS(humanChoice, botChoice);
+  onRPSStart(data) {
+    this.currentRpsDuelInfo = data;
+    const isP1 = (this.localPlayerId === data.p1Id);
+    const isP2 = (this.localPlayerId === data.p2Id);
+
+    if (isP1 || isP2) {
+      const opponentName = isP1 ? data.p2Name : data.p1Name;
+      const promptText = isP1
+        ? `Thách đấu Oẳn Tù Tì với ${opponentName}! Hãy ra chiêu:`
+        : `${opponentName} thách đấu Oẳn Tù Tì với bạn! Hãy ra chiêu:`;
+
+      document.getElementById('rpsPromptText').innerText = promptText;
+      document.getElementById('rpsResultText').innerText = '';
+      document.querySelectorAll('.rps-choice-btn').forEach(b => b.disabled = false);
+      document.getElementById('rpsModal').classList.remove('hidden');
+      sound.playCard();
+    } else {
+      this.setBanner(`✌️ ĐẠI CHIẾN OẰN TÙ TÌ!`, `${data.p1Name} đang so tài Kéo Búa Bao với ${data.p2Name}!`);
+    }
+  }
+
+  handleRPSChoice(choice) {
+    sound.playClick();
+    document.querySelectorAll('.rps-choice-btn').forEach(b => b.disabled = true);
+    const label = { rock: '✊ BÚA', paper: '✋ BAO', scissors: '✌️ KÉO' };
+    document.getElementById('rpsResultText').innerText = `Bạn đã chọn ${label[choice]}! Đang đợi đối thủ ra chiêu...`;
+
+    if (!this.network.isOnline) {
+      const choices = ['rock', 'paper', 'scissors'];
+      const botChoice = choices[Math.floor(Math.random() * 3)];
+      this.resolveRPS(choice, botChoice);
+      return;
+    }
+
+    if (this.network.isHost) {
+      this.recordRPSChoice(this.localPlayerId, choice);
+    } else {
+      this.network.sendActionToHost({
+        type: 'RPS_CHOICE',
+        choice: choice
+      });
+    }
+  }
+
+  recordRPSChoice(playerId, choice) {
+    if (!this.activeRpsDuel) return;
+    if (playerId === this.activeRpsDuel.p1Id) {
+      this.activeRpsDuel.p1Choice = choice;
+    } else if (playerId === this.activeRpsDuel.p2Id) {
+      this.activeRpsDuel.p2Choice = choice;
+    }
+
+    if (this.activeRpsDuel.p1Choice && this.activeRpsDuel.p2Choice) {
+      clearTimeout(this.activeRpsDuel.timer);
+      this.evaluateOnlineRPS();
+    }
+  }
+
+  evaluateOnlineRPS() {
+    if (!this.activeRpsDuel) return;
+    const { p1Id, p1Name, p2Id, p2Name, p1Choice, p2Choice } = this.activeRpsDuel;
+
+    // Tie check
+    if (p1Choice === p2Choice) {
+      const p1 = this.getPlayerById(p1Id);
+      const p2 = this.getPlayerById(p2Id);
+      const choices = ['rock', 'paper', 'scissors'];
+      this.activeRpsDuel.p1Choice = (p1 && !p1.isHuman) ? choices[Math.floor(Math.random() * 3)] : null;
+      this.activeRpsDuel.p2Choice = (p2 && !p2.isHuman) ? choices[Math.floor(Math.random() * 3)] : null;
+
+      const tiePayload = {
+        type: 'RPS_TIE',
+        p1Id,
+        p2Id,
+        p1Name,
+        p2Name,
+        c1: p1Choice,
+        c2: p2Choice
+      };
+      this.network.broadcastToAll(tiePayload);
+      this.onRPSTie(tiePayload);
+
+      if (this.activeRpsDuel.p1Choice && this.activeRpsDuel.p2Choice) {
+        setTimeout(() => this.evaluateOnlineRPS(), 1000);
+      }
+      return;
+    }
+
+    let winnerId = null;
+    let loserId = null;
+    let winnerName = null;
+    let loserName = null;
+
+    if ((p1Choice === 'rock' && p2Choice === 'scissors') ||
+        (p1Choice === 'scissors' && p2Choice === 'paper') ||
+        (p1Choice === 'paper' && p2Choice === 'rock')) {
+      winnerId = p1Id;
+      winnerName = p1Name;
+      loserId = p2Id;
+      loserName = p2Name;
+    } else {
+      winnerId = p2Id;
+      winnerName = p2Name;
+      loserId = p1Id;
+      loserName = p1Name;
+    }
+
+    const winner = this.getPlayerById(winnerId);
+    const loser = this.getPlayerById(loserId);
+    let stolen = 0;
+    if (winner && loser) {
+      stolen = this.rewardRPSWinner(winner, loser);
+    }
+
+    this.activeRpsDuel = null;
+
+    const resultPayload = {
+      type: 'RPS_RESULT',
+      p1Id,
+      p2Id,
+      c1: p1Choice,
+      c2: p2Choice,
+      winnerId,
+      winnerName,
+      loserId,
+      loserName,
+      stolenCount: stolen
+    };
+
+    this.network.broadcastToAll(resultPayload);
+    this.onRPSResult(resultPayload);
+
+    this.broadcastSnapshot();
+  }
+
+  onRPSTie(data) {
+    const label = { rock: '✊ BÚA', paper: '✋ BAO', scissors: '✌️ KÉO' };
+    const resultEl = document.getElementById('rpsResultText');
+    if (resultEl) {
+      resultEl.innerText = `Hoà nhau (${label[data.c1]} vs ${label[data.c2]})! Hãy ra chiêu lại...`;
+    }
+    const isP1 = (this.localPlayerId === data.p1Id);
+    const isP2 = (this.localPlayerId === data.p2Id);
+    if (isP1 || isP2) {
+      document.querySelectorAll('.rps-choice-btn').forEach(b => {
+        b.disabled = false;
+      });
+    }
+  }
+
+  onRPSResult(data) {
+    const label = { rock: '✊ BÚA', paper: '✋ BAO', scissors: '✌️ KÉO' };
+    const resultEl = document.getElementById('rpsResultText');
+    const isWinner = (this.localPlayerId === data.winnerId);
+    const isLoser = (this.localPlayerId === data.loserId);
+
+    if (resultEl) {
+      if (isWinner) {
+        resultEl.innerText = `🎉 BẠN THẮNG! (${label[data.c1]} vs ${label[data.c2]}) Cướp được ${data.stolenCount || 0} ô đất!`;
+      } else if (isLoser) {
+        resultEl.innerText = `💥 BẠN THUA! (${label[data.c1]} vs ${label[data.c2]}) Bị cướp ${data.stolenCount || 0} ô đất!`;
+      } else {
+        resultEl.innerText = `🏆 ${data.winnerName} THẮNG (${label[data.c1]} vs ${label[data.c2]})!`;
+      }
+    }
+
+    this.setBanner(`🏆 KẾT QUẢ OẰN TÙ TÌ:`, `${data.winnerName} thắng (${label[data.c1]} vs ${label[data.c2]}) và cướp ${data.stolenCount || 0} ô đất từ ${data.loserName}!`);
+    sound.playCapture();
+
+    setTimeout(() => {
+      document.getElementById('rpsModal').classList.add('hidden');
+    }, 2200);
   }
 
   resolveRPS(c1, c2) {
@@ -2493,6 +2861,9 @@ class ColorSpillGame {
     let winner = null;
     if (c1 === c2) {
       resultEl.innerText = `Hoà nhau (${label[c1]} vs ${label[c2]})! Thử lại...`;
+      document.querySelectorAll('.rps-choice-btn').forEach(b => {
+        b.disabled = false;
+      });
       return;
     }
 
@@ -2508,14 +2879,14 @@ class ColorSpillGame {
       document.getElementById('rpsModal').classList.add('hidden');
       const loser = (winner === this.rpsP1) ? this.rpsP2 : this.rpsP1;
       this.rewardRPSWinner(winner, loser);
-    }, 1400);
+    }, 1800);
   }
 
   rewardRPSWinner(winner, loser) {
     let stolen = 0;
     for (let x = 0; x < BOARD_SIZE && stolen < 3; x++) {
       for (let y = 0; y < BOARD_SIZE && stolen < 3; y++) {
-        if (this.grid[x][y].owner === loser.id && this.isAdjacentToPlayer(x, y, winner.id)) {
+        if (this.grid[x][y].owner === loser.id && !this.grid[x][y].blocked && this.isAdjacentToPlayer(x, y, winner.id)) {
           this.setCellOwner(x, y, winner.id);
           stolen++;
         }
@@ -2524,6 +2895,7 @@ class ColorSpillGame {
     this.setBanner(`🏆 KẾT QUẢ OẰN TÙ TÌ:`, `${winner.name} thắng và cướp ${stolen} ô đất từ ${loser.name}!`);
     this.checkAndApplyCaptures(winner.id);
     this.updateHUD();
+    return stolen;
   }
 
   // ------------------------------------------------------
@@ -3616,6 +3988,18 @@ class ColorSpillGame {
 
   handleClientTurnAction(playerId, action) {
     if (!this.isMatchActive || !this.network.isHost || !action) return;
+
+    // RPS duel choice can be submitted by either participant (attacker or defender)
+    if (action.type === 'RPS_CHOICE') {
+      this.recordRPSChoice(playerId, action.choice);
+      return;
+    }
+
+    // Mystery Steal card pick
+    if (action.type === 'STEAL_CARD_PICK') {
+      this.handleStealCardPick(playerId, action.victimId, action.slotIdx);
+      return;
+    }
 
     const active = this.getActivePlayer();
     if (!active) return;

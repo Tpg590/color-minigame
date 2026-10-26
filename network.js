@@ -1068,6 +1068,30 @@ class NetworkManager {
       if (this.game && this.game.finishMatch) {
         this.game.finishMatch(data.result.winnerId, data.result.subtitle);
       }
+    } else if (data.type === 'RPS_START') {
+      if (this.game && this.game.onRPSStart) {
+        this.game.onRPSStart(data);
+      }
+    } else if (data.type === 'RPS_TIE') {
+      if (this.game && this.game.onRPSTie) {
+        this.game.onRPSTie(data);
+      }
+    } else if (data.type === 'RPS_RESULT') {
+      if (this.game && this.game.onRPSResult) {
+        this.game.onRPSResult(data);
+      }
+    } else if (data.type === 'SHOW_CARD_PEEP') {
+      if (this.game && this.game.onShowCardPeep) {
+        this.game.onShowCardPeep(data);
+      }
+    } else if (data.type === 'STEAL_CARD_START') {
+      if (this.game && this.game.onStealCardStart) {
+        this.game.onStealCardStart(data);
+      }
+    } else if (data.type === 'STEAL_CARD_REVEAL') {
+      if (this.game && this.game.onStealCardReveal) {
+        this.game.onStealCardReveal(data);
+      }
     }
   }
 
