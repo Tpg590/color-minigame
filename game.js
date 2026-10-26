@@ -624,6 +624,8 @@ class ColorSpillGame {
           sound.playClick();
           btnRefresh.classList.add('rotating');
           setTimeout(() => btnRefresh.classList.remove('rotating'), 600);
+          this.network.discoveredRooms = {};
+          try { localStorage.removeItem('csp_active_rooms'); } catch (e) {}
           this.network.queryActiveRooms();
           this.renderPublicRooms(this.network.getCleanRoomList());
         });
@@ -707,6 +709,10 @@ class ColorSpillGame {
         btnHostToggle.addEventListener('click', () => {
           sound.playClick();
           const nextRole = this.network.isSpectator ? 'player' : 'spectator';
+          if (nextRole === 'player' && this.network.lobbyPlayers && this.network.lobbyPlayers.length >= 4) {
+            window.appAlert('⚠️ Phòng đã đủ tối đa 4 đấu thủ! Không thể chuyển sang Đấu Thủ.', 'PHÒNG ĐÃ ĐỦ', 'warning');
+            return;
+          }
           this.network.requestRoleSwitch(nextRole);
         });
       }
@@ -717,6 +723,10 @@ class ColorSpillGame {
         btnGuestSwitch.addEventListener('click', () => {
           sound.playClick();
           const nextRole = this.network.isSpectator ? 'player' : 'spectator';
+          if (nextRole === 'player' && this.network.lobbyPlayers && this.network.lobbyPlayers.length >= 4) {
+            window.appAlert('⚠️ Phòng đã đủ tối đa 4 đấu thủ! Không thể chuyển sang Đấu Thủ.', 'PHÒNG ĐÃ ĐỦ', 'warning');
+            return;
+          }
           this.network.requestRoleSwitch(nextRole);
         });
       }
@@ -978,6 +988,31 @@ class ColorSpillGame {
       return;
     }
 
+    // If dropped directly onto a cell for cell targeting cards
+    if (cellX !== undefined && cellY !== undefined && (card.target === 'cell' || card.target === 'cell_empty')) {
+      if (card.target === 'cell_empty') {
+        if (this.grid[cellX][cellY].owner !== 0 || this.grid[cellX][cellY].blocked) {
+          sound.playTick();
+          this.setBanner(`⚠️ Ô (${cellX}, ${cellY}) ĐÃ CÓ CHỦ HOẶC BỊ KHÓA!`, `Vui lòng bấm vào 1 ô TRỐNG chưa có ai chiếm để áp dụng ${card.name}.`);
+          return;
+        }
+      } else if (card.target === 'cell') {
+        if (this.grid[cellX][cellY].owner !== this.localPlayerId) {
+          sound.playTick();
+          this.setBanner(`⚠️ Ô (${cellX}, ${cellY}) KHÔNG THUỘC LÃNH THỔ BẠN!`, `Vui lòng bấm vào 1 ô của bạn để áp dụng ${card.name}.`);
+          return;
+        }
+      }
+      this.pendingCardEffect = null;
+      this.selectedCardIndex = null;
+      if (this.network.isOnline && !this.network.isHost) {
+        this.network.sendActionToHost({ type: 'PLAY_CARD', cardIndex, params: { cellX, cellY } });
+        return;
+      }
+      this.executeCardEffect(this.localPlayerId, card, cardIndex, { cellX, cellY });
+      return;
+    }
+
     // Specific cell targeting cards (Phong Ấn Ô, Lâu Đài Cô Độc, Tuyến Bất Tử)
     if (card.target === 'cell' || card.target === 'cell_empty') {
       this.pendingCardEffect = { playerId: this.localPlayerId, card, cardIndex };
@@ -1000,6 +1035,10 @@ class ColorSpillGame {
     }
 
     // Direct cast (self / global)
+    if (this.network.isOnline && !this.network.isHost) {
+      this.network.sendActionToHost({ type: 'PLAY_CARD', cardIndex, params: {} });
+      return;
+    }
     this.executeCardEffect(this.localPlayerId, card, cardIndex, {});
   }
 
@@ -1122,9 +1161,24 @@ class ColorSpillGame {
     this.isMatchActive = true;
     this.isSpectator = isSpectator || (myNetId === 0) || !!this.network.isSpectator;
     this.localPlayerId = this.isSpectator ? 0 : myNetId;
-    this.players = matchData.players;
-    this.initBoardData();
+    this.players = matchData.players || [];
+    this.currentTurnIndex = matchData.currentTurnIndex || 0;
+    this.turnNumber = matchData.turnNumber || 1;
+    this.turnTimer = matchData.turnTimer || 30;
+
+    // Use board data provided by host with all initial spawn cells
+    if (matchData.board && matchData.board.length) {
+      this.grid = matchData.board;
+    } else {
+      this.initBoardData();
+      this.players.forEach(p => {
+        if (p.spawn) this.setCellOwner(p.spawn.x, p.spawn.y, p.id);
+      });
+    }
+
+    this.recalculateCellCounts();
     this.setupMatchCommon(true);
+    this.drawBoard();
   }
 
   setupMatchCommon(isGuest = false) {
@@ -1153,6 +1207,19 @@ class ColorSpillGame {
       this.turnDirection = 1;
       this.turnNumber = 1;
       this.startTurn(0);
+    } else {
+      // Start synchronized countdown timer on guest
+      this.updateTimerDisplay();
+      clearInterval(this.timerInterval);
+      this.timerInterval = setInterval(() => {
+        if (this.turnTimer > 0) {
+          this.turnTimer--;
+          this.updateTimerDisplay();
+          if (this.turnTimer <= 5 && this.turnTimer > 0) {
+            sound.playTick();
+          }
+        }
+      }, 1000);
     }
 
     sound.playBgm('match');
@@ -1508,12 +1575,18 @@ class ColorSpillGame {
 
     // Start 30s Countdown Timer
     this.updateTimerDisplay();
+    clearInterval(this.timerInterval);
     this.timerInterval = setInterval(() => {
       this.turnTimer--;
       this.updateTimerDisplay();
 
       if (this.turnTimer <= 5 && this.turnTimer > 0) {
         sound.playTick();
+      }
+
+      // Broadcast timer tick to guests/spectators every 5s or during the urgent countdown (<=5s)
+      if (this.network.isOnline && this.network.isHost && (this.turnTimer % 5 === 0 || this.turnTimer <= 5)) {
+        this.broadcastSnapshot();
       }
 
       if (this.turnTimer <= 0) {
@@ -1897,6 +1970,10 @@ class ColorSpillGame {
   }
 
   discardCard(playerId, cardIndex) {
+    if (this.network.isOnline && !this.network.isHost && playerId === this.localPlayerId) {
+      this.network.sendActionToHost({ type: 'DISCARD_CARD', cardIndex });
+      return;
+    }
     const p = this.getPlayerById(playerId);
     if (!p || cardIndex < 0 || cardIndex >= p.handCards.length) return;
 
@@ -1948,6 +2025,10 @@ class ColorSpillGame {
         sound.playClick();
         modalEl.classList.add('hidden');
         this.pendingCardEffect = null;
+        if (this.network.isOnline && !this.network.isHost) {
+          this.network.sendActionToHost({ type: 'PLAY_CARD', cardIndex, params: { targetPlayerId: op.id } });
+          return;
+        }
         this.executeCardEffect(this.localPlayerId, card, cardIndex, { targetPlayerId: op.id });
       });
       gridEl.appendChild(btn);
@@ -2405,18 +2486,38 @@ class ColorSpillGame {
   }
 
   chooseBotCard(bot) {
-    // Only non-passive cards
+    if (bot.disabledHandTurns > 0 || !bot.handCards || bot.handCards.length === 0) return -1;
+
+    // 1. GainMomentum (+2 moves) - Huge tactical advantage
+    const idxMomentum = bot.handCards.findIndex(c => c.id === 'GainMomentum');
+    if (idxMomentum >= 0) return idxMomentum;
+
+    // 2. UnexpectedLuck / CardCollection - Replenish hand when low
+    const idxDraw = bot.handCards.findIndex(c => c.id === 'UnexpectedLuck' || c.id === 'CardCollection');
+    if (idxDraw >= 0 && bot.handCards.length <= 3) return idxDraw;
+
+    // 3. Nuke - Area clear near enemy clusters
     const idxNuke = bot.handCards.findIndex(c => c.id === 'Nuke');
     if (idxNuke >= 0) return idxNuke;
 
-    const idxDraw = bot.handCards.findIndex(c => c.id === 'UnexpectedLuck');
-    if (idxDraw >= 0 && bot.handCards.length <= 3) return idxDraw;
+    // 4. BanTurn / DisableOnHand / Rival - Cripple the leading opponent
+    const idxDebuff = bot.handCards.findIndex(c => c.id === 'BanTurn' || c.id === 'DisableOnHand' || c.id === 'Rival');
+    if (idxDebuff >= 0) return idxDebuff;
 
-    const idxBan = bot.handCards.findIndex(c => c.id === 'BanTurn');
-    if (idxBan >= 0) return idxBan;
-
-    const idxSteal = bot.handCards.findIndex(c => c.id === 'StealCard');
+    // 5. StealCard / SwapCard - Take advantage of rich opponents
+    const idxSteal = bot.handCards.findIndex(c => c.id === 'StealCard' || c.id === 'SwapCard');
     if (idxSteal >= 0) return idxSteal;
+
+    // 6. BodySwap if an opponent has heavily surpassed bot in territory
+    const leaders = this.players.filter(op => op.id !== bot.id && !op.eliminated).sort((a, b) => b.cellCount - a.cellCount);
+    if (leaders.length > 0 && leaders[0].cellCount >= bot.cellCount + 8) {
+      const idxBody = bot.handCards.findIndex(c => c.id === 'BodySwap');
+      if (idxBody >= 0) return idxBody;
+    }
+
+    // 7. Defensive border cards (ImortalLine / CastleIsolate / BlockCell)
+    const idxDef = bot.handCards.findIndex(c => c.id === 'ImortalLine' || c.id === 'CastleIsolate' || c.id === 'BlockCell');
+    if (idxDef >= 0) return idxDef;
 
     return -1;
   }
@@ -2428,9 +2529,62 @@ class ColorSpillGame {
       if (targets.length > 0) {
         this.executeCardEffect(botId, card, cardIndex, { targetPlayerId: targets[0].id });
       }
+    } else if (card.target === 'cell') {
+      // Find bot's most vulnerable border cell (adjacent to opponents) to protect
+      let targetCell = null;
+      for (let x = 0; x < BOARD_SIZE && !targetCell; x++) {
+        for (let y = 0; y < BOARD_SIZE && !targetCell; y++) {
+          if (this.grid[x][y].owner === botId) {
+            // Check if adjacent to enemy
+            const dx = [1, -1, 0, 0];
+            const dy = [0, 0, 1, -1];
+            for (let i = 0; i < 4; i++) {
+              const nx = x + dx[i];
+              const ny = y + dy[i];
+              if (nx >= 0 && nx < BOARD_SIZE && ny >= 0 && ny < BOARD_SIZE) {
+                if (this.grid[nx][ny].owner !== 0 && this.grid[nx][ny].owner !== botId) {
+                  targetCell = { x, y };
+                  break;
+                }
+              }
+            }
+          }
+        }
+      }
+      const finalCell = targetCell || { x: this.players[botId - 1].spawn.x, y: this.players[botId - 1].spawn.y };
+      this.executeCardEffect(botId, card, cardIndex, { cellX: finalCell.x, cellY: finalCell.y });
+    } else if (card.target === 'cell_empty') {
+      // Find an empty cell adjacent to bot territory
+      const valid = this.getValidMovesForPlayer(botId).filter(m => this.grid[m.x][m.y].owner === 0);
+      const chosen = valid.length > 0 ? valid[0] : { x: 7, y: 7 };
+      this.executeCardEffect(botId, card, cardIndex, { cellX: chosen.x, cellY: chosen.y });
     } else {
       this.executeCardEffect(botId, card, cardIndex, {});
     }
+  }
+
+  simulateCapturesForPlayer(checkingPlayerId) {
+    const visited = [];
+    for (let x = 0; x < BOARD_SIZE; x++) {
+      visited[x] = new Array(BOARD_SIZE).fill(false);
+    }
+    let totalCaptured = 0;
+    for (let x = 0; x < BOARD_SIZE; x++) {
+      for (let y = 0; y < BOARD_SIZE; y++) {
+        const cell = this.grid[x][y];
+        if (cell.owner !== checkingPlayerId && !visited[x][y]) {
+          const group = [];
+          let isEnclosed = true;
+          this.floodFillCheck(x, y, visited, group, checkingPlayerId, () => {
+            isEnclosed = false;
+          });
+          if (isEnclosed && group.length > 0) {
+            totalCaptured += group.length;
+          }
+        }
+      }
+    }
+    return totalCaptured;
   }
 
   executeBotMove(bot) {
@@ -2442,14 +2596,66 @@ class ColorSpillGame {
     }
 
     let bestMove = validMoves[0];
-    let bestScore = -999;
+    let bestScore = -99999;
 
     validMoves.forEach(m => {
       let score = 0;
-      const distToCenter = Math.hypot(m.x - 7.5, m.y - 7.5);
-      score += (10 - distToCenter);
+      const cell = this.grid[m.x][m.y];
 
-      if (this.grid[m.x][m.y].owner !== 0) score += 15;
+      // 1. Enclosure Simulation: Prioritize closing loops to swallow enemy/empty territory
+      const originalOwner = cell.owner;
+      cell.owner = bot.id;
+      const simCaptures = this.simulateCapturesForPlayer(bot.id);
+      cell.owner = originalOwner;
+
+      if (simCaptures > 0) {
+        score += simCaptures * 95; // Highest priority: massive capture payoff!
+      }
+
+      // 2. Loop & Perimeter Formation (Đếm ô đồng minh kề cạnh 8 hướng để khép góc bao vây)
+      let friendlyNeighbors = 0;
+      let enemyNeighbors = 0;
+      const dx = [1, -1, 0, 0, 1, 1, -1, -1];
+      const dy = [0, 0, 1, -1, 1, -1, 1, -1];
+      for (let i = 0; i < 8; i++) {
+        const nx = m.x + dx[i];
+        const ny = m.y + dy[i];
+        if (nx >= 0 && nx < BOARD_SIZE && ny >= 0 && ny < BOARD_SIZE) {
+          const nOwner = this.grid[nx][ny].owner;
+          if (nOwner === bot.id) friendlyNeighbors++;
+          else if (nOwner !== 0) enemyNeighbors++;
+        }
+      }
+
+      // Connecting multiple friendly cells forms walls and prepares encirclement
+      if (friendlyNeighbors >= 3) {
+        score += 55; // Completing a wall / enclosing
+      } else if (friendlyNeighbors === 2) {
+        score += 35; // Bending perimeter
+      } else {
+        score += 12; // Forward expansion
+      }
+
+      // 3. Stealing Opponent's Cells (Cướp ô đối thủ)
+      if (originalOwner !== 0) {
+        score += 35;
+        const enemy = this.getPlayerById(originalOwner);
+        if (enemy && enemy.cellCount >= bot.cellCount) {
+          score += 25; // Prioritize cutting down the leader
+        }
+      }
+
+      // 4. Contact with Enemy Frontiers (Áp sát để bao vây đối thủ)
+      if (enemyNeighbors > 0) {
+        score += enemyNeighbors * 10;
+      }
+
+      // 5. Tactical Center Presence (Avoid straight-line marching)
+      const distToCenter = Math.hypot(m.x - 7.5, m.y - 7.5);
+      score += (10 - distToCenter) * 1.5;
+
+      // Small jitter so bots don't move predictably
+      score += Math.random() * 4;
 
       if (score > bestScore) {
         bestScore = score;
@@ -2458,6 +2664,11 @@ class ColorSpillGame {
     });
 
     this.applyCellMove(bestMove.x, bestMove.y, bot.id);
+
+    // If bot has remaining moves (e.g. from GainMomentum card)
+    if (this.remainingMoves > 0) {
+      setTimeout(() => this.executeBotMove(bot), 650);
+    }
   }
 
   // ------------------------------------------------------
@@ -2556,6 +2767,10 @@ class ColorSpillGame {
 
       this.pendingCardEffect = null;
       this.selectedCardIndex = null;
+      if (this.network.isOnline && !this.network.isHost) {
+        this.network.sendActionToHost({ type: 'PLAY_CARD', cardIndex, params: { cellX: x, cellY: y } });
+        return;
+      }
       this.executeCardEffect(playerId, card, cardIndex, { cellX: x, cellY: y });
       return;
     }
@@ -3360,7 +3575,24 @@ class ColorSpillGame {
     this.turnTimer = snapshot.turnTimer;
     this.remainingMoves = snapshot.remainingMoves;
 
+    this.recalculateCellCounts();
     this.updateHUD();
+    this.updateTimerDisplay();
+
+    // Restart smooth 1s timer countdown on guest
+    if (!this.network.isHost) {
+      clearInterval(this.timerInterval);
+      this.timerInterval = setInterval(() => {
+        if (this.turnTimer > 0) {
+          this.turnTimer--;
+          this.updateTimerDisplay();
+          if (this.turnTimer <= 5 && this.turnTimer > 0) {
+            sound.playTick();
+          }
+        }
+      }, 1000);
+    }
+
     if (this.isSpectator) {
       this.renderSpectatorInspectorUI();
       const liveEl = document.getElementById('specLiveCount');
@@ -3370,6 +3602,7 @@ class ColorSpillGame {
     } else {
       this.renderHandCardsUI();
     }
+    this.drawBoard();
   }
 
   // ------------------------------------------------------
@@ -3435,6 +3668,16 @@ class ColorSpillGame {
               this.executeJoinRoom(cleanCode, retryPass.trim(), asSpectator);
             }
           }, 350);
+        } else if (!asSpectator && (errStr.includes('đủ') || errStr.includes('full') || errStr.includes('diễn ra'))) {
+          setTimeout(async () => {
+            const wantSpec = await window.appConfirm(
+              `⚠️ ${String(err)}\n\nHiện tại phòng chỉ mở chế độ Khán Giả (Spectator).\nBạn có muốn vào xem trực tiếp trận đấu không?`,
+              'PHÒNG ĐÃ ĐỦ ĐẤU THỦ'
+            );
+            if (wantSpec) {
+              this.executeJoinRoom(cleanCode, password, true);
+            }
+          }, 250);
         } else {
           window.appAlert(String(err), 'LỖI KẾT NỐI PHÒNG', 'error');
         }
@@ -3509,19 +3752,27 @@ class ColorSpillGame {
             </div>
           </div>
           <div class="room-card-actions">
-            <button type="button" class="btn-room-join ${isFull || isPlaying ? 'disabled' : (isPrivate ? 'btn-secondary' : 'btn-primary')}"
-              ${isFull || isPlaying ? 'disabled' : ''} data-code="${room.code}" data-private="${isPrivate}">
-              ${isPlaying ? 'ĐANG ĐẤU' : (isFull ? 'ĐÃ ĐỦ' : (isPrivate ? '🔒 Vào Đấu' : '👉 Vào Đấu'))}
-            </button>
-            <button type="button" class="btn-room-spectate btn-secondary" data-code="${room.code}" data-private="${isPrivate}" title="Vào xem trận đấu với tư cách Khán giả">
-              👁️ Vào Xem
-            </button>
+            ${(isFull || isPlaying) ? `
+              <span class="room-status-badge ${isPlaying ? 'status-playing' : 'status-full'}">
+                ${isPlaying ? '🔴 ĐANG ĐẤU' : '🔒 ĐÃ ĐỦ 4/4'}
+              </span>
+              <button type="button" class="btn-room-spectate btn-primary btn-spec-prominent" data-code="${room.code}" data-private="${isPrivate}" title="Phòng đã đủ người chơi, chỉ mở chế độ Khán giả theo dõi">
+                👁️ Vào Xem
+              </button>
+            ` : `
+              <button type="button" class="btn-room-join ${isPrivate ? 'btn-secondary' : 'btn-primary'}" data-code="${room.code}" data-private="${isPrivate}">
+                ${isPrivate ? '🔒 Vào Đấu' : '👉 Vào Đấu'}
+              </button>
+              <button type="button" class="btn-room-spectate btn-secondary" data-code="${room.code}" data-private="${isPrivate}" title="Vào xem trận đấu với tư cách Khán giả">
+                👁️ Vào Xem
+              </button>
+            `}
           </div>
         </div>
       `;
     }).join('');
 
-    container.querySelectorAll('.btn-room-join:not(.disabled)').forEach(btn => {
+    container.querySelectorAll('.btn-room-join').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
         sound.playClick();

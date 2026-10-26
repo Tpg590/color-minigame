@@ -203,8 +203,10 @@
 
           <!-- VIEW 4: PHÒNG CHỜ CỦA HOST -->
           <div id="viewHostWaiting" class="lobby-view hidden">
-            <div class="view-header">
-              <h2>👑 PHÒNG CHỜ CỦA BẠN</h2>
+            <div class="view-header waiting-header">
+              <div class="waiting-title-box">
+                <h2>👑 PHÒNG CHỜ CỦA BẠN</h2>
+              </div>
               <div class="header-badges-row">
                 <span id="hostRoleBadge" class="badge-role">⚔️ Đấu Thủ</span>
                 <span id="hostPrivacyBadge" class="badge-privacy">🌐 Công Khai</span>
@@ -234,16 +236,16 @@
             </div>
 
             <div class="role-switch-bar">
-              <button id="btnHostToggleRole" type="button" class="btn-role-toggle">
+              <button id="btnHostToggleRole" type="button" class="btn-role-toggle w-full">
                 🔄 Đổi vai trò Chủ phòng: <strong id="hostRoleToggleText">Trở thành Khán Giả</strong>
               </button>
             </div>
 
             <div class="lobby-actions">
-              <button id="btnHostStartMatch" type="button" class="btn-primary btn-pulse">
+              <button id="btnHostStartMatch" type="button" class="btn-primary btn-pulse flex-1">
                 <span class="btn-icon-lead">🚀</span> BẮT ĐẦU TRẬN ĐẤU
               </button>
-              <button id="btnCancelHost" type="button" class="btn-secondary">
+              <button id="btnCancelHost" type="button" class="btn-secondary btn-cancel-host">
                 Hủy Phòng
               </button>
             </div>
@@ -261,10 +263,11 @@
               <label>CÁCH 1: NHẬP MÃ PHÒNG TRỰC TIẾP</label>
               <div class="input-with-action join-actions-group">
                 <input type="text" id="joinDirectCodeInput" placeholder="Ví dụ: CSP-8492 hoặc 8492..." maxlength="10" />
-                <button id="btnJoinDirect" type="button" class="btn-primary">⚔️ VÀO ĐẤU</button>
+                <button id="btnJoinDirect" type="button" class="btn-primary btn-direct-join">⚔️ VÀO ĐẤU</button>
                 <button id="btnSpectateDirect" type="button" class="btn-secondary btn-spectate-pill" title="Vào xem trận đấu với tư cách Khán giả">👁️ VÀO XEM</button>
               </div>
               <div id="directJoinStatus" class="join-status-text"></div>
+              <div class="join-direct-hint">💡 Khi phòng đã đủ 4/4 tuyển thủ hoặc đang thi đấu, hãy chọn <strong>👁️ VÀO XEM</strong> để theo dõi trực tiếp.</div>
             </div>
 
             <div class="divider-text"><span>HOẶC</span></div>
@@ -282,9 +285,13 @@
 
           <!-- VIEW 6: PHÒNG CHỜ CỦA KHÁCH -->
           <div id="viewGuestWaiting" class="lobby-view hidden">
-            <div class="view-header">
-              <h2>🎮 PHÒNG CHỜ (<span id="guestRoomCodeTitle" class="text-teal"></span>)</h2>
-              <span id="guestRoleBadge" class="badge-role">⚔️ Đấu Thủ</span>
+            <div class="view-header waiting-header">
+              <div class="waiting-title-box">
+                <h2>🎮 PHÒNG CHỜ (<span id="guestRoomCodeTitle" class="text-teal"></span>)</h2>
+              </div>
+              <div class="header-badges-row">
+                <span id="guestRoleBadge" class="badge-role">⚔️ Đấu Thủ</span>
+              </div>
             </div>
 
             <div class="lobby-player-list">

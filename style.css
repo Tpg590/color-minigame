@@ -485,6 +485,26 @@ input[type="text"]:focus, input[type="password"]:focus {
   border: 1px solid rgba(0, 229, 255, 0.45);
 }
 
+/* Uniform Form Styling for all Lobby Views */
+.lobby-view input[type="text"],
+.lobby-view input[type="password"] {
+  height: 42px;
+  border-radius: 10px;
+  padding: 0 16px;
+  box-sizing: border-box;
+}
+
+.lobby-view .segmented-control {
+  border-radius: 10px;
+  padding: 4px;
+}
+
+.lobby-view .seg-btn {
+  border-radius: 8px;
+  font-size: 0.82rem;
+  padding: 8px 12px;
+}
+
 .main-menu-buttons {
   display: flex;
   flex-direction: column;
@@ -583,9 +603,11 @@ input[type="text"]:focus, input[type="password"]:focus {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 20px;
+  margin-bottom: 18px;
   gap: 12px;
   width: 100%;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 .view-header h2 {
   font-family: var(--font-title);
@@ -598,8 +620,26 @@ input[type="text"]:focus, input[type="password"]:focus {
   color: var(--text-main);
   white-space: nowrap;
 }
-.view-header-spacer {
-  width: 95px;
+.waiting-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.waiting-title-box {
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+.waiting-title-box h2 {
+  text-align: left;
+  font-size: 1.08rem;
+  margin: 0;
+}
+.header-badges-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   flex-shrink: 0;
 }
 .btn-back {
@@ -607,7 +647,7 @@ input[type="text"]:focus, input[type="password"]:focus {
   border: 1px solid rgba(255, 255, 255, 0.2);
   color: var(--text-main);
   padding: 8px 16px;
-  border-radius: 50px;
+  border-radius: 10px;
   font-family: var(--font-main);
   font-size: 0.82rem;
   font-weight: 700;
@@ -630,16 +670,16 @@ input[type="text"]:focus, input[type="password"]:focus {
 
 /* Room Waiting view */
 .room-code-display {
-  background: rgba(0, 0, 0, 0.4);
+  background: rgba(0, 0, 0, 0.45);
   border: 1px dashed rgba(0, 229, 255, 0.4);
-  border-radius: 12px;
-  padding: 12px;
+  border-radius: 14px;
+  padding: 14px 18px;
   text-align: center;
-  margin-bottom: 14px;
+  margin-bottom: 16px;
 }
 .room-code-text {
   font-family: var(--font-title);
-  font-size: 1.6rem;
+  font-size: 1.65rem;
   font-weight: 900;
   letter-spacing: 2px;
   color: var(--accent-cyan);
@@ -652,47 +692,101 @@ input[type="text"]:focus, input[type="password"]:focus {
   margin: 6px 0;
 }
 .btn-icon-pill {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.2);
   color: #fff;
-  padding: 5px 12px;
-  border-radius: 50px;
-  font-size: 0.74rem;
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 0.76rem;
   font-weight: 700;
   cursor: pointer;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.btn-icon-pill:hover {
+  background: rgba(0, 229, 255, 0.2);
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
 }
 .waiting-list {
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin: 10px 0 16px;
+  gap: 8px;
+  margin: 10px 0 14px;
 }
 .waiting-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  background: rgba(255, 255, 255, 0.05);
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 10px;
   padding: 8px 12px;
 }
 .waiting-avatar {
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
+  flex-shrink: 0;
 }
 .waiting-name {
   font-weight: 700;
-  font-size: 0.85rem;
+  font-size: 0.86rem;
 }
 .badge-host {
   background: var(--accent-gold);
   color: #000;
-  font-size: 0.62rem;
+  font-size: 0.64rem;
   font-weight: 800;
-  padding: 2px 6px;
-  border-radius: 4px;
+  padding: 3px 8px;
+  border-radius: 6px;
   margin-left: auto;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Host & Guest Lobby Bottom Action Bars */
+.lobby-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+}
+.lobby-actions .btn-primary {
+  flex: 1;
+  height: 44px;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.lobby-actions .btn-cancel-host {
+  width: 110px;
+  height: 44px;
+  border-radius: 10px;
+  font-size: 0.86rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.lobby-guest-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 14px;
+}
+.lobby-guest-actions button {
+  height: 42px;
+  border-radius: 10px;
+  font-size: 0.86rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* Privacy Badges */
@@ -700,16 +794,19 @@ input[type="text"]:focus, input[type="password"]:focus {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 3px 8px;
-  border-radius: 50px;
-  font-size: 0.72rem;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 0.74rem;
   font-weight: 800;
   letter-spacing: 0.4px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  line-height: 1;
 }
 .badge-public {
   background: rgba(0, 229, 255, 0.15);
   color: var(--accent-cyan);
-  border: 1px solid rgba(0, 229, 255, 0.35);
+  border: 1px solid rgba(0, 229, 255, 0.4);
 }
 .badge-private {
   background: rgba(255, 56, 100, 0.18);
@@ -2988,19 +3085,25 @@ input[type="text"]:focus, input[type="password"]:focus {
 }
 
 .role-switch-bar {
-  margin-top: 10px;
-  text-align: center;
+  margin-top: 12px;
+  width: 100%;
 }
 
 .btn-role-toggle {
-  background: rgba(255, 255, 255, 0.06);
+  width: 100%;
+  height: 40px;
+  background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(0, 229, 255, 0.35);
   color: var(--text-main);
-  padding: 8px 14px;
-  border-radius: 8px;
-  font-size: 0.82rem;
+  padding: 0 16px;
+  border-radius: 10px;
+  font-size: 0.84rem;
   font-weight: 600;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   transition: all 0.2s ease;
 }
 
@@ -3013,19 +3116,39 @@ input[type="text"]:focus, input[type="password"]:focus {
 .join-actions-group {
   display: flex;
   gap: 8px;
-  align-items: stretch;
+  align-items: center;
+  width: 100%;
+}
+
+.btn-direct-join {
+  height: 42px;
+  padding: 0 16px;
+  border-radius: 10px;
+  font-size: 0.84rem;
+  font-weight: 800;
+  white-space: nowrap;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 14px rgba(0, 200, 83, 0.25);
 }
 
 .btn-spectate-pill {
+  height: 42px;
   padding: 0 16px;
-  font-size: 0.82rem;
-  font-weight: 700;
+  font-size: 0.84rem;
+  font-weight: 800;
   background: rgba(0, 229, 255, 0.15);
   border: 1px solid rgba(0, 229, 255, 0.45);
   color: #00e5ff;
-  border-radius: 8px;
+  border-radius: 10px;
   white-space: nowrap;
+  flex-shrink: 0;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   transition: all 0.2s ease;
 }
 
@@ -3035,29 +3158,87 @@ input[type="text"]:focus, input[type="password"]:focus {
   box-shadow: 0 0 14px rgba(0, 229, 255, 0.45);
 }
 
+.join-direct-hint {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  margin-top: 6px;
+  line-height: 1.4;
+}
+
 .room-card-actions {
   display: flex;
   gap: 8px;
   align-items: center;
+  flex-shrink: 0;
+}
+
+.btn-room-join,
+.btn-room-spectate {
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  transition: all 0.2s ease;
+}
+
+.btn-room-join {
+  border: none;
 }
 
 .btn-room-spectate {
-  padding: 7px 12px;
-  border-radius: 8px;
-  font-size: 0.78rem;
-  font-weight: 700;
   background: rgba(0, 229, 255, 0.12);
   border: 1px solid rgba(0, 229, 255, 0.35);
   color: #00e5ff;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.2s ease;
 }
 
 .btn-room-spectate:hover {
   background: #00e5ff;
   color: #000;
   box-shadow: 0 0 12px rgba(0, 229, 255, 0.5);
+}
+
+.btn-room-spectate.btn-spec-prominent {
+  background: linear-gradient(135deg, rgba(0, 229, 255, 0.25), rgba(255, 183, 3, 0.25));
+  border: 1px solid rgba(0, 229, 255, 0.6);
+  color: #fff;
+  box-shadow: 0 0 10px rgba(0, 229, 255, 0.25);
+}
+
+.btn-room-spectate.btn-spec-prominent:hover {
+  background: #00e5ff;
+  color: #000;
+}
+
+.room-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.room-status-badge.status-full {
+  background: rgba(255, 56, 100, 0.16);
+  color: #ff6b8b;
+  border: 1px solid rgba(255, 56, 100, 0.35);
+}
+
+.room-status-badge.status-playing {
+  background: rgba(255, 183, 3, 0.18);
+  color: #ffd000;
+  border: 1px solid rgba(255, 183, 3, 0.45);
 }
 
 .badge-live-stream {

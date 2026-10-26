@@ -165,7 +165,24 @@ class NetworkManager {
             }
             const info = JSON.parse(str);
             if (info && info.code) {
-              info.lastSeen = Date.now();
+              const now = Date.now();
+              const roomAge = now - (info.timestamp || 0);
+              // If room payload is older than 12 seconds, host is offline (ghost room)
+              if (roomAge > 12000) {
+                // Proactively clear this dead retained ghost room on the MQTT broker
+                if (this.mqttClient && this.mqttClient.connected) {
+                  try {
+                    this.mqttClient.publish(topic, '', { qos: 0, retain: true });
+                  } catch (e) {}
+                }
+                if (this.discoveredRooms[info.code]) {
+                  delete this.discoveredRooms[info.code];
+                  this.saveLocalStorageRooms();
+                  this.notifyRoomsUpdated();
+                }
+                return;
+              }
+              info.lastSeen = now;
               this.discoveredRooms[info.code] = info;
               this.saveLocalStorageRooms();
               this.notifyRoomsUpdated();
@@ -226,8 +243,10 @@ class NetworkManager {
         const parsed = JSON.parse(stored);
         const now = Date.now();
         for (const code in parsed) {
-          if (now - (parsed[code].lastSeen || 0) < 35000) {
-            this.discoveredRooms[code] = parsed[code];
+          const r = parsed[code];
+          const age = now - (r.timestamp || r.lastSeen || 0);
+          if (age < 10000) {
+            this.discoveredRooms[code] = r;
           }
         }
       }
@@ -239,8 +258,10 @@ class NetworkManager {
       const clean = {};
       const now = Date.now();
       for (const code in this.discoveredRooms) {
-        if (now - (this.discoveredRooms[code].lastSeen || 0) < 35000) {
-          clean[code] = this.discoveredRooms[code];
+        const r = this.discoveredRooms[code];
+        const age = now - (r.timestamp || r.lastSeen || 0);
+        if (age < 10000) {
+          clean[code] = r;
         }
       }
       localStorage.setItem('csp_active_rooms', JSON.stringify(clean));
@@ -252,7 +273,8 @@ class NetworkManager {
     const list = [];
     for (const code in this.discoveredRooms) {
       const r = this.discoveredRooms[code];
-      if (now - (r.lastSeen || 0) < 35000) {
+      const age = now - (r.timestamp || r.lastSeen || 0);
+      if (age < 10000) {
         list.push(r);
       } else {
         delete this.discoveredRooms[code];
