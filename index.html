@@ -31,7 +31,7 @@
         <!-- Live Territory Ownership Bar -->
         <div class="territory-bar-wrapper">
           <div class="territory-label">
-            <span class="hud-title-tag">BẢN ĐỒ CHIẾM ĐÓNG</span>
+            <span class="hud-title-tag">BẢN ĐỒ</span>
           </div>
           <div class="territory-bar" id="territoryBar">
             <div id="barP1" class="bar-seg seg-p1" style="width: 25%"></div>
@@ -141,7 +141,7 @@
             <div class="view-header">
               <button class="btn-back" type="button" data-back="viewMain">← Quay lại</button>
               <h2>🤖 CHƠI VỚI MÁY</h2>
-              <div></div>
+              <div class="view-header-spacer"></div>
             </div>
             <p class="view-desc">Chiến đấu với Bot AI thông minh biết dùng thẻ bài và tính toán nước cờ bao vây!</p>
 
@@ -164,7 +164,7 @@
             <div class="view-header">
               <button class="btn-back" type="button" data-back="viewMain">← Quay lại</button>
               <h2>👑 TẠO PHÒNG ONLINE</h2>
-              <div></div>
+              <div class="view-header-spacer"></div>
             </div>
 
             <div class="form-group">
@@ -230,7 +230,7 @@
             <div class="view-header">
               <button class="btn-back" type="button" data-back="viewMain">← Quay lại</button>
               <h2>🔍 TÌM PHÒNG ONLINE</h2>
-              <div></div>
+              <div class="view-header-spacer"></div>
             </div>
 
             <div class="find-section">
@@ -543,6 +543,27 @@
         </div>
       </div>
     </div>
+
+    <!-- MODAL: UNIVERSAL GAME DIALOG / POPUP (Replaces alert, prompt, confirm) -->
+    <div id="appDialogModal" class="modal-backdrop hidden" style="z-index: 9999;">
+      <div class="modal-card glassmorphism app-dialog-card" id="appDialogCard">
+        <div class="dialog-icon-wrapper" id="dialogIconWrapper">
+          <span class="dialog-icon" id="dialogIcon">🔔</span>
+        </div>
+        <h2 class="dialog-title" id="dialogTitle">THÔNG BÁO</h2>
+        <div class="dialog-message" id="dialogMessage">Nội dung thông báo</div>
+        <div class="dialog-input-wrapper hidden" id="dialogInputWrapper">
+          <input type="text" id="dialogInput" class="dialog-input" placeholder="Nhập nội dung..." autocomplete="off" />
+        </div>
+        <div class="dialog-actions" id="dialogActions">
+          <button type="button" class="btn-secondary hidden" id="btnDialogCancel">HỦY BỎ</button>
+          <button type="button" class="btn-primary" id="btnDialogConfirm">ĐỒNG Ý</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- TOAST NOTIFICATION CONTAINER (Non-intrusive in-game alert popups) -->
+    <div id="appToastContainer" class="toast-container"></div>
 
   </div>
 

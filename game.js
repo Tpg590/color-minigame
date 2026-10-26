@@ -263,6 +263,207 @@ const PLAYER_PROFILES = [
 ];
 
 // ========================================================
+// UNIVERSAL APP DIALOG & TOAST SYSTEM (Replaces alert, prompt, confirm)
+// ========================================================
+(function() {
+  if (typeof window === 'undefined') return;
+
+  let activeDialogResolver = null;
+
+  window.showAppDialog = function(options = {}) {
+    const modal = document.getElementById('appDialogModal');
+    const card = document.getElementById('appDialogCard');
+    const iconEl = document.getElementById('dialogIcon');
+    const titleEl = document.getElementById('dialogTitle');
+    const msgEl = document.getElementById('dialogMessage');
+    const inputWrapper = document.getElementById('dialogInputWrapper');
+    const inputEl = document.getElementById('dialogInput');
+    const btnCancel = document.getElementById('btnDialogCancel');
+    const btnConfirm = document.getElementById('btnDialogConfirm');
+
+    if (!modal || !card) {
+      if (options.showCancel) return Promise.resolve(false);
+      return Promise.resolve(true);
+    }
+
+    if (activeDialogResolver) {
+      activeDialogResolver(options.showInput ? null : false);
+      activeDialogResolver = null;
+    }
+
+    const {
+      title = 'THÔNG BÁO',
+      message = '',
+      type = 'info', // 'info', 'warning', 'error', 'success'
+      icon = null,
+      showInput = false,
+      inputType = 'text',
+      inputValue = '',
+      inputPlaceholder = 'Nhập nội dung...',
+      confirmText = 'ĐỒNG Ý',
+      cancelText = 'HỦY BỎ',
+      showCancel = false
+    } = options;
+
+    card.classList.remove('dialog-error', 'dialog-warning', 'dialog-success');
+    if (type === 'error') card.classList.add('dialog-error');
+    else if (type === 'warning') card.classList.add('dialog-warning');
+    else if (type === 'success') card.classList.add('dialog-success');
+
+    let displayIcon = icon;
+    if (!displayIcon) {
+      if (type === 'error') displayIcon = '❌';
+      else if (type === 'warning') displayIcon = '⚠️';
+      else if (type === 'success') displayIcon = '✅';
+      else displayIcon = showInput ? '✏️' : '🔔';
+    }
+    if (iconEl) iconEl.innerText = displayIcon;
+    if (titleEl) titleEl.innerText = title;
+    if (msgEl) msgEl.innerText = message;
+
+    if (inputWrapper && inputEl) {
+      if (showInput) {
+        inputWrapper.classList.remove('hidden');
+        inputEl.type = inputType || 'text';
+        inputEl.value = inputValue || '';
+        inputEl.placeholder = inputPlaceholder || '';
+      } else {
+        inputWrapper.classList.add('hidden');
+      }
+    }
+
+    if (btnConfirm) btnConfirm.innerText = confirmText;
+    if (btnCancel) {
+      btnCancel.innerText = cancelText;
+      if (showCancel) btnCancel.classList.remove('hidden');
+      else btnCancel.classList.add('hidden');
+    }
+
+    modal.classList.remove('hidden');
+
+    return new Promise((resolve) => {
+      activeDialogResolver = resolve;
+
+      const cleanup = () => {
+        modal.classList.add('hidden');
+        document.removeEventListener('keydown', handleKey);
+        modal.onclick = null;
+        activeDialogResolver = null;
+      };
+
+      const doConfirm = () => {
+        if (window.sound && typeof window.sound.playClick === 'function') {
+          window.sound.playClick();
+        }
+        const val = inputEl ? inputEl.value : '';
+        cleanup();
+        resolve(showInput ? val : true);
+      };
+
+      const doCancel = () => {
+        if (window.sound && typeof window.sound.playClick === 'function') {
+          window.sound.playClick();
+        }
+        cleanup();
+        resolve(showInput ? null : false);
+      };
+
+      const handleKey = (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          doConfirm();
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          doCancel();
+        }
+      };
+
+      document.addEventListener('keydown', handleKey);
+
+      if (btnConfirm) {
+        btnConfirm.onclick = (e) => {
+          e.preventDefault();
+          doConfirm();
+        };
+      }
+
+      if (btnCancel) {
+        btnCancel.onclick = (e) => {
+          e.preventDefault();
+          doCancel();
+        };
+      }
+
+      modal.onclick = (e) => {
+        if (e.target === modal) {
+          if (showCancel) doCancel();
+          else doConfirm();
+        }
+      };
+
+      setTimeout(() => {
+        if (showInput && inputEl) {
+          inputEl.focus();
+          inputEl.select();
+        } else if (btnConfirm) {
+          btnConfirm.focus();
+        }
+      }, 50);
+    });
+  };
+
+  window.appAlert = function(message, title = 'THÔNG BÁO', type = 'info') {
+    return window.showAppDialog({ title, message, type, showCancel: false, confirmText: 'ĐÃ HIỂU' });
+  };
+
+  window.appConfirm = function(message, title = 'XÁC NHẬN', type = 'warning') {
+    return window.showAppDialog({ title, message, type, showCancel: true, confirmText: 'ĐỒNG Ý', cancelText: 'HỦY BỎ' });
+  };
+
+  window.appPrompt = function(message, defaultValue = '', title = 'NHẬP THÔNG TIN', inputType = 'text') {
+    return window.showAppDialog({
+      title,
+      message,
+      type: 'info',
+      showInput: true,
+      inputType,
+      inputValue: defaultValue,
+      showCancel: true,
+      confirmText: 'XÁC NHẬN',
+      cancelText: 'HỦY BỎ'
+    });
+  };
+
+  window.showToast = function(message, type = 'info', duration = 3000) {
+    const container = document.getElementById('appToastContainer');
+    if (!container) return;
+
+    let icon = '🔔';
+    if (type === 'error') icon = '❌';
+    else if (type === 'warning') icon = '⚠️';
+    else if (type === 'success') icon = '✨';
+
+    const toast = document.createElement('div');
+    toast.className = `game-toast ${type === 'error' ? 'toast-error' : (type === 'warning' ? 'toast-warning' : (type === 'success' ? 'toast-success' : ''))}`;
+    toast.innerHTML = `<span class="toast-icon">${icon}</span><span class="toast-text">${message}</span>`;
+
+    container.appendChild(toast);
+
+    setTimeout(() => {
+      toast.classList.add('toast-hiding');
+      setTimeout(() => {
+        if (toast.parentNode) toast.parentNode.removeChild(toast);
+      }, 300);
+    }, duration);
+  };
+
+  // Safe global override
+  window.alert = function(msg) {
+    if (window.appAlert) window.appAlert(String(msg));
+  };
+})();
+
+// ========================================================
 // 3. COLOR SPILL BOARD GAME CLASS
 // ========================================================
 class ColorSpillGame {
@@ -410,6 +611,7 @@ class ColorSpillGame {
         btnRefresh.classList.add('rotating');
         setTimeout(() => btnRefresh.classList.remove('rotating'), 600);
         this.network.queryActiveRooms();
+        this.renderPublicRooms(this.network.getCleanRoomList());
       });
     }
 
@@ -436,7 +638,7 @@ class ColorSpillGame {
       const myName = (document.getElementById('playerNameInput').value || '').trim() || 'ChromaKnight';
 
       if (isPrivate && !password) {
-        alert('⚠️ Vui lòng nhập mật khẩu cho phòng riêng tư!');
+        window.appAlert('Vui lòng nhập mật khẩu cho phòng riêng tư!', 'CHÚ Ý', 'warning');
         const pwdInput = document.getElementById('createRoomPasswordInput');
         if (pwdInput) pwdInput.focus();
         return;
@@ -468,7 +670,7 @@ class ColorSpillGame {
         (err) => {
           createBtn.disabled = false;
           createBtn.innerHTML = '<span class="btn-icon-lead">🚀</span> TẠO PHÒNG & LẤY MÃ CODE';
-          alert('Lỗi tạo phòng: ' + err);
+          window.appAlert('Lỗi tạo phòng: ' + err, 'LỖI TẠO PHÒNG', 'error');
         }
       );
     });
@@ -490,7 +692,7 @@ class ColorSpillGame {
       const codeInput = document.getElementById('joinDirectCodeInput');
       const code = (codeInput ? codeInput.value : '').trim();
       if (!code) {
-        alert('Vui lòng nhập mã phòng (Ví dụ: CSP-XXXX hoặc XXXX)!');
+        window.appAlert('Vui lòng nhập mã phòng (Ví dụ: CSP-XXXX hoặc XXXX)!', 'CHÚ Ý', 'warning');
         if (codeInput) codeInput.focus();
         return;
       }
@@ -539,8 +741,9 @@ class ColorSpillGame {
       sound.playClick();
       document.getElementById('tutorialModal').classList.add('hidden');
     });
-    document.getElementById('btnQuitMatch').addEventListener('click', () => {
-      if (confirm('Bạn có chắc chắn muốn rời trận đấu hiện tại?')) {
+    document.getElementById('btnQuitMatch').addEventListener('click', async () => {
+      const confirmQuit = await window.appConfirm('Bạn có chắc chắn muốn rời trận đấu hiện tại và trở về sảnh?', 'RỜI TRẬN ĐẤU');
+      if (confirmQuit) {
         this.exitMatchToLobby();
       }
     });
@@ -677,11 +880,11 @@ class ColorSpillGame {
   handleCardDropOnBoard(card, cardIndex, cellX, cellY) {
     const active = this.getActivePlayer();
     if (active.id !== this.localPlayerId) {
-      alert('Chưa đến lượt của bạn!');
+      window.showToast('Chưa đến lượt của bạn!', 'warning');
       return;
     }
     if (active.disabledHandTurns > 0) {
-      alert('Bạn đang bị khóa sử dụng thẻ bài ở lượt này!');
+      window.showToast('Bạn đang bị khóa sử dụng thẻ bài ở lượt này!', 'warning');
       return;
     }
 
@@ -1328,7 +1531,7 @@ class ColorSpillGame {
 
     const opponents = this.players.filter(op => op.id !== this.localPlayerId && !op.eliminated);
     if (opponents.length === 0) {
-      alert('Không còn đối thủ nào khả dụng trên sàn đấu!');
+      window.showToast('Không còn đối thủ nào khả dụng trên sàn đấu!', 'warning');
       return;
     }
 
@@ -1950,7 +2153,7 @@ class ColorSpillGame {
     // 2. If a card is selected from hand (Tap-to-Select mechanic on Mobile/PC)
     if (this.selectedCardIndex !== null) {
       if (active.id !== this.localPlayerId) {
-        alert('Chưa đến lượt của bạn!');
+        window.showToast('Chưa đến lượt của bạn!', 'warning');
         return;
       }
       const myPlayer = this.getPlayerById(this.localPlayerId);
@@ -1970,16 +2173,16 @@ class ColorSpillGame {
     const cell = this.grid[x][y];
     if (cell.owner === active.id) return;
     if (cell.blocked) {
-      alert('Ô này đã bị phong ấn, không ai có thể chiếm!');
+      window.showToast('Ô này đã bị phong ấn, không ai có thể chiếm!', 'warning');
       return;
     }
     if (cell.protectedUntil >= this.turnNumber) {
-      alert('Ô này đang được bảo vệ bởi Tuyến Bất Tử!');
+      window.showToast('Ô này đang được bảo vệ bởi Tuyến Bất Tử!', 'warning');
       return;
     }
 
     if (!this.isAdjacentToPlayer(x, y, active.id)) {
-      alert('Nước đi không hợp lệ! Bạn chỉ có thể chiếm ô nằm kề cận (8 hướng) với lãnh thổ của mình.');
+      window.showToast('Nước đi không hợp lệ! Bạn chỉ có thể chiếm ô nằm kề cận (8 hướng) với lãnh thổ của mình.', 'warning');
       return;
     }
 
@@ -2256,7 +2459,6 @@ class ColorSpillGame {
             <div class="pcard-top">
               <div class="pcard-avatar" style="background: ${p.color}; color: ${p.color};"></div>
               <span class="pcard-name">${p.name} ${isYou ? '<span class="badge-you">(BẠN)</span>' : ''}</span>
-              <span class="pcard-cards-badge" title="Số thẻ bài đang có trên tay">🃏 ${p.handCards.length}</span>
               <span class="pcard-pct">${pct}%</span>
             </div>
             <div class="pcard-meta">
@@ -2700,25 +2902,37 @@ class ColorSpillGame {
         // If rejection was due to password, prompt user immediately
         const errStr = String(err).toLowerCase();
         if (errStr.includes('mật khẩu') || errStr.includes('password')) {
-          setTimeout(() => {
-            const retryPass = prompt(`🔒 Phòng "${cleanCode}" yêu cầu mật khẩu.\nVui lòng nhập mật khẩu phòng:`);
+          setTimeout(async () => {
+            const retryPass = await window.appPrompt(
+              `🔒 Phòng "${cleanCode}" yêu cầu mật khẩu.\nVui lòng nhập mật khẩu phòng:`,
+              '',
+              'PHÒNG RIÊNG TƯ',
+              'password'
+            );
             if (retryPass !== null && retryPass.trim() !== '') {
               this.executeJoinRoom(cleanCode, retryPass.trim());
             }
           }, 350);
+        } else {
+          window.appAlert(String(err), 'LỖI KẾT NỐI PHÒNG', 'error');
         }
       }
     );
   }
 
-  handleJoinFromRoomList(code, isPrivate) {
+  async handleJoinFromRoomList(code, isPrivate) {
     let password = '';
     if (isPrivate) {
-      const input = prompt(`🔒 Phòng "${code}" được đặt chế độ Riêng Tư.\nVui lòng nhập mật khẩu phòng:`);
+      const input = await window.appPrompt(
+        `🔒 Phòng "${code}" được đặt chế độ Riêng Tư.\nVui lòng nhập mật khẩu phòng:`,
+        '',
+        'PHÒNG RIÊNG TƯ',
+        'password'
+      );
       if (input === null) return; // User cancelled
       password = input.trim();
       if (!password) {
-        alert('Mật khẩu không được để trống!');
+        window.appAlert('Mật khẩu không được để trống!', 'CHÚ Ý', 'warning');
         return;
       }
     }
