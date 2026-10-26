@@ -2462,9 +2462,8 @@ class ColorSpillGame {
               <span class="pcard-pct">${pct}%</span>
             </div>
             <div class="pcard-meta">
-              <span>🏰 ${p.cellCount} ô</span>
+              <span class="pcard-castles">🏰 ${p.cellCount} ô</span>
               <span class="pcard-meta-pill" title="Số thẻ bài đang cầm trên tay">🃏 ${p.handCards.length}/5</span>
-              <span class="pcard-meta-pill" title="Số thẻ bài đã sử dụng">✨ ${p.usedCardsCount || 0} đã dùng</span>
             </div>
             <div class="pcard-buffs">
               ${hasShieldInHand ? '<span class="buff-tag">🛡️ Khiên Sẵn Sàng</span>' : ''}
@@ -2591,11 +2590,11 @@ class ColorSpillGame {
       let borderClass = `card-${cardType.toLowerCase()}`;
 
       if (isPassive) {
-        typeLabel = 'BỊ ĐỘNG 🛡️';
+        typeLabel = 'BỊ ĐỘNG';
         typeClass = 'type-passive';
         borderClass = 'card-passive';
       } else if (isShard) {
-        typeLabel = 'EXODIA 👑';
+        typeLabel = 'EXODIA';
         typeClass = 'type-shard';
         borderClass = 'card-shard';
       }
