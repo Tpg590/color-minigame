@@ -734,6 +734,16 @@ class NetworkManager {
   handleHostReceivedData(conn, data) {
     if (!data || !data.type) return;
 
+    // Deduplication check for both WebRTC and MQTT
+    if (data.msgId) {
+      if (this.processedMsgIds.has(data.msgId)) return;
+      this.processedMsgIds.add(data.msgId);
+      if (this.processedMsgIds.size > 500) {
+        const first = this.processedMsgIds.values().next().value;
+        this.processedMsgIds.delete(first);
+      }
+    }
+
     if (data.type === 'JOIN_REQUEST') {
       const guestClientId = data.guestClientId || (conn ? conn.peer : null);
       const isSpectator = !!data.isSpectator;
@@ -980,11 +990,22 @@ class NetworkManager {
   handleGuestReceivedData(data) {
     if (!data || !data.type) return;
 
+    // Deduplication check for both WebRTC and MQTT
+    if (data.msgId) {
+      if (this.processedMsgIds.has(data.msgId)) return;
+      this.processedMsgIds.add(data.msgId);
+      if (this.processedMsgIds.size > 500) {
+        const first = this.processedMsgIds.values().next().value;
+        this.processedMsgIds.delete(first);
+      }
+    }
+
     if (data.type === 'JOIN_SUCCESS') {
       this.myNetId = data.myId;
       this.isSpectator = !!data.isSpectator;
       if (this.game) {
         this.game.isSpectator = this.isSpectator;
+        this.game.localPlayerId = this.isSpectator ? 0 : this.myNetId;
       }
       if (data.players) this.lobbyPlayers = data.players;
       if (data.spectators) this.lobbySpectators = data.spectators;
@@ -1002,6 +1023,7 @@ class NetworkManager {
       this.myNetId = data.myId;
       if (this.game) {
         this.game.isSpectator = this.isSpectator;
+        this.game.localPlayerId = this.isSpectator ? 0 : this.myNetId;
         if (this.game.onRoleChanged) {
           this.game.onRoleChanged(this.isSpectator);
         }
@@ -1013,10 +1035,24 @@ class NetworkManager {
     } else if (data.type === 'LOBBY_STATE') {
       this.lobbyPlayers = data.players;
       this.lobbySpectators = data.spectators || [];
+      // Always keep myNetId in sync with assigned player ID if lobby was reordered
+      if (!this.isSpectator && this.guestClientId && this.lobbyPlayers) {
+        const me = this.lobbyPlayers.find(p => p.guestClientId === this.guestClientId);
+        if (me) {
+          this.myNetId = me.id;
+          if (this.game) this.game.localPlayerId = me.id;
+        }
+      }
       if (this.game && this.game.onLobbyUpdate) {
         this.game.onLobbyUpdate(this.lobbyPlayers, this.lobbySpectators);
       }
     } else if (data.type === 'GAME_START') {
+      if (data.matchData && data.matchData.players && !this.isSpectator && this.guestClientId) {
+        const me = data.matchData.players.find(p => p.guestClientId === this.guestClientId);
+        if (me) {
+          this.myNetId = me.id;
+        }
+      }
       if (this.game && this.game.startOnlineMatchAsGuest) {
         this.game.startOnlineMatchAsGuest(data.matchData, this.myNetId, this.isSpectator);
       }

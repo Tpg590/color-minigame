@@ -1006,7 +1006,22 @@ class ColorSpillGame {
       this.pendingCardEffect = null;
       this.selectedCardIndex = null;
       if (this.network.isOnline && !this.network.isHost) {
-        this.network.sendActionToHost({ type: 'PLAY_CARD', cardIndex, params: { cellX, cellY } });
+        const p = this.getPlayerById(this.localPlayerId);
+        if (p && cardIndex >= 0 && cardIndex < p.handCards.length) {
+          p.handCards.splice(cardIndex, 1);
+          this.renderHandCardsUI();
+        }
+        if (card.id === 'BlockCell') {
+          this.grid[cellX][cellY].blocked = true;
+          this.grid[cellX][cellY].owner = 0;
+          this.drawBoard();
+        }
+        this.network.sendActionToHost({
+          type: 'PLAY_CARD',
+          cardId: card.id,
+          cardIndex,
+          params: { cellX, cellY }
+        });
         return;
       }
       this.executeCardEffect(this.localPlayerId, card, cardIndex, { cellX, cellY });
@@ -1035,8 +1050,20 @@ class ColorSpillGame {
     }
 
     // Direct cast (self / global)
+    this.pendingCardEffect = null;
+    this.selectedCardIndex = null;
     if (this.network.isOnline && !this.network.isHost) {
-      this.network.sendActionToHost({ type: 'PLAY_CARD', cardIndex, params: {} });
+      const p = this.getPlayerById(this.localPlayerId);
+      if (p && cardIndex >= 0 && cardIndex < p.handCards.length) {
+        p.handCards.splice(cardIndex, 1);
+        this.renderHandCardsUI();
+      }
+      this.network.sendActionToHost({
+        type: 'PLAY_CARD',
+        cardId: card.id,
+        cardIndex,
+        params: {}
+      });
       return;
     }
     this.executeCardEffect(this.localPlayerId, card, cardIndex, {});
@@ -1133,6 +1160,7 @@ class ColorSpillGame {
         glow: prof.glow,
         spawn: prof.spawn,
         isHuman: !!lobPlayer,
+        guestClientId: lobPlayer ? lobPlayer.guestClientId : null,
         cellCount: 0,
         eliminated: false,
         handCards: [],
@@ -1548,7 +1576,18 @@ class ColorSpillGame {
     // Check Banned
     if (activePlayer.isBanned) {
       activePlayer.isBanned = false;
-      this.setBanner(`🚫 ${activePlayer.name} BỊ CẤM LƯỢT!`, `Lượt này bị bỏ qua.`);
+      this.setBanner(`🚫 ${activePlayer.name} BỊ CẤM LƯỢT!`, `Lượt này bị bỏ qua do dính hiệu ứng Cấm Lượt.`);
+      sound.playCard();
+      this.updateHUD();
+      this.renderHandCardsUI();
+      if (this.network.isOnline && this.network.isHost) {
+        this.broadcastSnapshot();
+        this.network.broadcastEsportsCombatEvent({
+          type: 'PLAYER_BANNED',
+          playerId: activePlayer.id,
+          playerName: activePlayer.name
+        });
+      }
       setTimeout(() => this.nextTurn(), 1800);
       return;
     }
@@ -1666,6 +1705,7 @@ class ColorSpillGame {
   // ------------------------------------------------------
   setCellOwner(x, y, playerId) {
     if (x < 0 || x >= BOARD_SIZE || y < 0 || y >= BOARD_SIZE) return;
+    if (this.grid[x][y].blocked) return; // Blocked cells can NEVER be claimed or owned
     const oldOwner = this.grid[x][y].owner;
     if (oldOwner === playerId) return;
 
@@ -1728,6 +1768,7 @@ class ColorSpillGame {
   // Making 1 move immediately finishes turn as requested!
   applyCellMove(x, y, playerId) {
     if (this.remainingMoves <= 0) return false;
+    if (this.grid[x] && this.grid[x][y] && this.grid[x][y].blocked) return false;
 
     this.setCellOwner(x, y, playerId);
     this.remainingMoves--;
@@ -1971,7 +2012,17 @@ class ColorSpillGame {
 
   discardCard(playerId, cardIndex) {
     if (this.network.isOnline && !this.network.isHost && playerId === this.localPlayerId) {
-      this.network.sendActionToHost({ type: 'DISCARD_CARD', cardIndex });
+      const p = this.getPlayerById(playerId);
+      const card = (p && p.handCards[cardIndex]) ? p.handCards[cardIndex] : null;
+      if (p && cardIndex >= 0 && cardIndex < p.handCards.length) {
+        p.handCards.splice(cardIndex, 1);
+        this.renderHandCardsUI();
+      }
+      this.network.sendActionToHost({
+        type: 'DISCARD_CARD',
+        cardIndex,
+        cardId: card ? card.id : null
+      });
       return;
     }
     const p = this.getPlayerById(playerId);
@@ -2025,8 +2076,19 @@ class ColorSpillGame {
         sound.playClick();
         modalEl.classList.add('hidden');
         this.pendingCardEffect = null;
+        this.selectedCardIndex = null;
         if (this.network.isOnline && !this.network.isHost) {
-          this.network.sendActionToHost({ type: 'PLAY_CARD', cardIndex, params: { targetPlayerId: op.id } });
+          const p = this.getPlayerById(this.localPlayerId);
+          if (p && cardIndex >= 0 && cardIndex < p.handCards.length) {
+            p.handCards.splice(cardIndex, 1);
+            this.renderHandCardsUI();
+          }
+          this.network.sendActionToHost({
+            type: 'PLAY_CARD',
+            cardId: card.id,
+            cardIndex,
+            params: { targetPlayerId: op.id }
+          });
           return;
         }
         this.executeCardEffect(this.localPlayerId, card, cardIndex, { targetPlayerId: op.id });
@@ -2768,7 +2830,23 @@ class ColorSpillGame {
       this.pendingCardEffect = null;
       this.selectedCardIndex = null;
       if (this.network.isOnline && !this.network.isHost) {
-        this.network.sendActionToHost({ type: 'PLAY_CARD', cardIndex, params: { cellX: x, cellY: y } });
+        const p = this.getPlayerById(this.localPlayerId);
+        if (p && cardIndex >= 0 && cardIndex < p.handCards.length) {
+          p.handCards.splice(cardIndex, 1);
+          this.renderHandCardsUI();
+        }
+        if (card.id === 'BlockCell') {
+          this.grid[x][y].blocked = true;
+          this.grid[x][y].owner = 0;
+          this.drawBoard();
+          this.setBanner(`⛔ ĐÃ PHONG ẤN Ô (${x}, ${y})!`, `Ô này đã bị khóa vĩnh viễn không ai có thể chiếm.`);
+        }
+        this.network.sendActionToHost({
+          type: 'PLAY_CARD',
+          cardId: card.id,
+          cardIndex,
+          params: { cellX: x, cellY: y }
+        });
         return;
       }
       this.executeCardEffect(playerId, card, cardIndex, { cellX: x, cellY: y });
@@ -3537,18 +3615,37 @@ class ColorSpillGame {
   }
 
   handleClientTurnAction(playerId, action) {
-    if (!this.isMatchActive || !this.network.isHost) return;
+    if (!this.isMatchActive || !this.network.isHost || !action) return;
 
     const active = this.getActivePlayer();
-    if (active.id !== playerId) return;
+    if (!active) return;
+    if (active.id !== playerId && active.controlledBy !== playerId) return;
 
     if (action.type === 'CELL_CLICK') {
-      this.applyCellMove(action.x, action.y, playerId);
+      this.applyCellMove(action.x, action.y, active.id);
     } else if (action.type === 'PLAY_CARD') {
-      const card = active.handCards[action.cardIndex];
-      if (card) this.executeCardEffect(playerId, card, action.cardIndex, action.params);
+      let cardIdx = -1;
+      if (action.cardId) {
+        cardIdx = active.handCards.findIndex(c => c.id === action.cardId);
+        if (cardIdx === -1) return; // Specific card was already consumed; drop duplicate
+      } else if (action.cardIndex >= 0 && action.cardIndex < active.handCards.length) {
+        cardIdx = action.cardIndex;
+      }
+      if (cardIdx !== -1) {
+        const card = active.handCards[cardIdx];
+        this.executeCardEffect(active.id, card, cardIdx, action.params);
+      }
     } else if (action.type === 'DISCARD_CARD') {
-      this.discardCard(playerId, action.cardIndex);
+      let cardIdx = -1;
+      if (action.cardId) {
+        cardIdx = active.handCards.findIndex(c => c.id === action.cardId);
+        if (cardIdx === -1) return; // Specific card was already discarded; drop duplicate
+      } else if (action.cardIndex >= 0 && action.cardIndex < active.handCards.length) {
+        cardIdx = action.cardIndex;
+      }
+      if (cardIdx !== -1) {
+        this.discardCard(active.id, cardIdx);
+      }
     }
 
     this.broadcastSnapshot();
