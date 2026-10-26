@@ -182,6 +182,15 @@
               </div>
             </div>
 
+            <!-- Role Selection for Host -->
+            <div class="form-group">
+              <label>VAI TRÒ CỦA BẠN (CHỦ PHÒNG):</label>
+              <div class="segmented-control" id="createRoomRoleControl">
+                <button type="button" class="seg-btn active" data-role="player">⚔️ Tuyển Thủ Thi Đấu</button>
+                <button type="button" class="seg-btn" data-role="spectator">👁️ Trọng Tài / Khán Giả (Spectator)</button>
+              </div>
+            </div>
+
             <div class="form-group hidden" id="roomPasswordGroup">
               <label>MẬT KHẨU PHÒNG <span class="text-coral">*</span>:</label>
               <input type="password" id="createRoomPasswordInput" placeholder="Nhập mật khẩu phòng..." maxlength="16" />
@@ -196,7 +205,10 @@
           <div id="viewHostWaiting" class="lobby-view hidden">
             <div class="view-header">
               <h2>👑 PHÒNG CHỜ CỦA BẠN</h2>
-              <span id="hostPrivacyBadge" class="badge-privacy">🌐 Công Khai</span>
+              <div class="header-badges-row">
+                <span id="hostRoleBadge" class="badge-role">⚔️ Đấu Thủ</span>
+                <span id="hostPrivacyBadge" class="badge-privacy">🌐 Công Khai</span>
+              </div>
             </div>
 
             <div class="room-code-display">
@@ -206,13 +218,25 @@
                 <button id="btnCopyCode" type="button" class="btn-icon-pill" title="Sao chép">📋 Sao chép</button>
                 <button id="btnShareCode" type="button" class="btn-icon-pill" title="Chia sẻ link phòng">📲 Chia sẻ</button>
               </div>
-              <span class="code-sub">Gửi mã code cho bạn bè trên điện thoại hoặc máy tính để cùng vào so tài!</span>
+              <span class="code-sub">Gửi mã code cho bạn bè trên điện thoại hoặc máy tính để cùng vào so tài hoặc theo dõi!</span>
             </div>
 
             <div class="lobby-player-list">
               <div class="list-title">DANH SÁCH ĐẤU THỦ TRONG PHÒNG (<span id="hostPlayerCount">1</span>/4):</div>
               <ul id="hostPlayerList" class="waiting-list"></ul>
               <div class="waiting-hint">👥 Có thể bấm bắt đầu ngay (chơi 2 người hoặc thêm Bot tự động lấp đầy)!</div>
+            </div>
+
+            <!-- Host Spectator List (Esports Spectator Mode) -->
+            <div class="lobby-spectator-list" id="hostSpectatorSection">
+              <div class="list-title">👁️ KHÁN GIẢ & TRỌNG TÀI (<span id="hostSpectatorCount">0</span>):</div>
+              <ul id="hostSpectatorList" class="waiting-list spectator-waiting-list"></ul>
+            </div>
+
+            <div class="role-switch-bar">
+              <button id="btnHostToggleRole" type="button" class="btn-role-toggle">
+                🔄 Đổi vai trò Chủ phòng: <strong id="hostRoleToggleText">Trở thành Khán Giả</strong>
+              </button>
             </div>
 
             <div class="lobby-actions">
@@ -235,9 +259,10 @@
 
             <div class="find-section">
               <label>CÁCH 1: NHẬP MÃ PHÒNG TRỰC TIẾP</label>
-              <div class="input-with-action">
+              <div class="input-with-action join-actions-group">
                 <input type="text" id="joinDirectCodeInput" placeholder="Ví dụ: CSP-8492 hoặc 8492..." maxlength="10" />
-                <button id="btnJoinDirect" type="button" class="btn-primary">VÀO PHÒNG</button>
+                <button id="btnJoinDirect" type="button" class="btn-primary">⚔️ VÀO ĐẤU</button>
+                <button id="btnSpectateDirect" type="button" class="btn-secondary btn-spectate-pill" title="Vào xem trận đấu với tư cách Khán giả">👁️ VÀO XEM</button>
               </div>
               <div id="directJoinStatus" class="join-status-text"></div>
             </div>
@@ -259,17 +284,29 @@
           <div id="viewGuestWaiting" class="lobby-view hidden">
             <div class="view-header">
               <h2>🎮 PHÒNG CHỜ (<span id="guestRoomCodeTitle" class="text-teal"></span>)</h2>
+              <span id="guestRoleBadge" class="badge-role">⚔️ Đấu Thủ</span>
             </div>
 
             <div class="lobby-player-list">
               <div class="list-title">DANH SÁCH ĐẤU THỦ TRONG PHÒNG:</div>
               <ul id="guestPlayerList" class="waiting-list"></ul>
-              <div class="waiting-hint">⏳ Đang chờ Chủ phòng bấm nút bắt đầu trận đấu...</div>
+              <div class="waiting-hint" id="guestWaitingHint">⏳ Đang chờ Chủ phòng bấm nút bắt đầu trận đấu...</div>
             </div>
 
-            <button id="btnLeaveGuest" type="button" class="btn-secondary w-full mt-20">
-              Rời Phòng
-            </button>
+            <!-- Guest Spectator List -->
+            <div class="lobby-spectator-list" id="guestSpectatorSection">
+              <div class="list-title">👁️ KHÁN GIẢ TRONG PHÒNG (<span id="guestSpectatorCount">0</span>):</div>
+              <ul id="guestSpectatorList" class="waiting-list spectator-waiting-list"></ul>
+            </div>
+
+            <div class="lobby-guest-actions">
+              <button id="btnGuestSwitchRole" type="button" class="btn-secondary w-full">
+                🔄 Đổi Vai Trò: <strong id="guestSwitchRoleText">Khán Giả (Spectator)</strong>
+              </button>
+              <button id="btnLeaveGuest" type="button" class="btn-secondary btn-danger-soft w-full mt-10">
+                Rời Phòng
+              </button>
+            </div>
           </div>
 
         </div>
@@ -278,6 +315,33 @@
       <!-- SCREEN 2: BOARD GAME ARENA -->
       <section id="gameScreen" class="screen game-screen hidden">
         <div class="board-arena-layout">
+
+          <!-- ESPORTS SPECTATOR TOURNAMENT BAR (LIÊN QUÂN STYLE) -->
+          <div id="spectatorTournamentBar" class="spectator-tournament-bar hidden">
+            <div class="spec-left">
+              <span class="live-pill"><span class="live-dot"></span> 🔴 TRỰC TIẾP ESPORTS</span>
+              <span class="spec-title-tag">GIẢI ĐẤU TOÀN NĂNG</span>
+              <span class="spec-count-tag" id="specLiveCount">👁️ 1 Khán Giả</span>
+            </div>
+            <div class="spec-center">
+              <div class="spec-spotlight-controls" id="specSpotlightControls">
+                <span class="spotlight-label">🎥 TIÊU ĐIỂM:</span>
+                <button type="button" class="spec-spot-btn active" data-spot="all">Toàn Cảnh</button>
+                <button type="button" class="spec-spot-btn" data-spot="1">P1</button>
+                <button type="button" class="spec-spot-btn" data-spot="2">P2</button>
+                <button type="button" class="spec-spot-btn" data-spot="3">P3</button>
+                <button type="button" class="spec-spot-btn" data-spot="4">P4</button>
+              </div>
+            </div>
+            <div class="spec-right">
+              <button id="btnOpenSpectatorStats" type="button" class="btn-spec-action" title="Bảng so sánh & phân tích tuyển thủ">
+                📊 SO KÈO TUYỂN THỦ
+              </button>
+              <button id="btnSpectatorQuit" type="button" class="btn-spec-action btn-danger" title="Rời xem trận đấu">
+                🚪 RỜI XEM
+              </button>
+            </div>
+          </div>
 
           <!-- TOP ACTION / COMBAT LOG BANNER -->
           <div class="arena-action-banner" id="actionBanner">
@@ -344,9 +408,10 @@
 
           </div>
 
-          <!-- BOTTOM DOCK: CARD HAND -->
+          <!-- BOTTOM DOCK: CARD HAND / SPECTATOR INSPECTOR -->
           <footer class="card-hand-dock glassmorphism" id="cardHandDock">
-            <div class="dock-header">
+            <!-- Normal Player Dock Header -->
+            <div class="dock-header" id="playerDockHeader">
               <div class="dock-title">
                 <span class="dock-icon">🎴</span>
                 <span>BÀI TRÊN TAY CỦA BẠN (<span id="handCount">0</span>/5)</span>
@@ -354,6 +419,22 @@
               </div>
               <div class="dock-instruction">
                 <span>✋ Chạm / Kéo thẻ vào <strong>Bàn Cờ</strong> để thi triển • Vào <strong>Thùng Rác</strong> để hủy</span>
+              </div>
+            </div>
+
+            <!-- Spectator Caster Inspector Header (Esports Liên Quân Style) -->
+            <div class="dock-header spectator-dock-header hidden" id="spectatorInspectorHeader">
+              <div class="dock-title">
+                <span class="dock-icon">👁️</span>
+                <span>SOI BÀI TUYỂN THỦ (ESPORTS HAND INSPECTOR)</span>
+                <span id="spectatorInspectTargetBadge" class="hand-status-badge spectator-target-badge">🌐 Toàn Bộ Tuyển Thủ</span>
+              </div>
+              <div class="spectator-player-tabs" id="spectatorPlayerTabs">
+                <button type="button" class="spec-tab-btn active" data-player="all">🌐 TẤT CẢ</button>
+                <button type="button" class="spec-tab-btn" data-player="1">👑 P1</button>
+                <button type="button" class="spec-tab-btn" data-player="2">⚔️ P2</button>
+                <button type="button" class="spec-tab-btn" data-player="3">🛡️ P3</button>
+                <button type="button" class="spec-tab-btn" data-player="4">⚡ P4</button>
               </div>
             </div>
 
@@ -540,6 +621,23 @@
         </div>
         <div class="modal-footer">
           <button class="btn-primary" id="btnGotTutorial">ĐÃ HIỂU, CHIẾN THÔI!</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: ESPORTS SPECTATOR STATS & HEAD-TO-HEAD (LIÊN QUÂN TOURNAMENT STYLE) -->
+    <div id="spectatorStatsModal" class="modal-backdrop hidden">
+      <div class="modal-card glassmorphism spectator-stats-modal">
+        <div class="modal-header">
+          <div class="header-esports-tag">🏆 COLOR SPILL ESPORTS CHAMPIONSHIP</div>
+          <h2>📊 BẢNG SO KÈO & PHÂN TÍCH TUYỂN THỦ</h2>
+          <button class="modal-close" id="btnCloseSpectatorStats">&times;</button>
+        </div>
+        <div class="modal-body" id="spectatorStatsContent">
+          <!-- Dynamically populated with player comparison -->
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-primary" id="btnGotSpectatorStats">ĐÓNG BẢNG SO KÈO</button>
         </div>
       </div>
     </div>

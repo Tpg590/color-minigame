@@ -497,6 +497,11 @@ class ColorSpillGame {
     // Players Array
     this.players = [];
 
+    // Spectator Mode State (Esports Liên Quân Tournament Spectator)
+    this.isSpectator = false;
+    this.spectatorSpotlightPlayerId = null; // null for all, or player id 1..4
+    this.spectatorInspectedPlayerId = 'all'; // 'all', or player id 1..4
+
     // Card Decks
     this.mainDeck = [];
     this.discardDeck = [];
@@ -567,154 +572,232 @@ class ColorSpillGame {
       });
     });
 
-    // Room Privacy segmented control (Public vs Private)
-    document.querySelectorAll('#roomPrivacyControl .seg-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        sound.playClick();
-        document.querySelectorAll('#roomPrivacyControl .seg-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        const isPrivate = btn.dataset.privacy === 'private';
-        const pwdGroup = document.getElementById('roomPasswordGroup');
-        if (pwdGroup) {
-          if (isPrivate) {
-            pwdGroup.classList.remove('hidden');
-            const pwdInput = document.getElementById('createRoomPasswordInput');
-            if (pwdInput) pwdInput.focus();
-          } else {
-            pwdGroup.classList.add('hidden');
+      // Room Privacy segmented control (Public vs Private)
+      document.querySelectorAll('#roomPrivacyControl .seg-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          sound.playClick();
+          document.querySelectorAll('#roomPrivacyControl .seg-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          const isPrivate = btn.dataset.privacy === 'private';
+          const pwdGroup = document.getElementById('roomPasswordGroup');
+          if (pwdGroup) {
+            if (isPrivate) {
+              pwdGroup.classList.remove('hidden');
+              const pwdInput = document.getElementById('createRoomPasswordInput');
+              if (pwdInput) pwdInput.focus();
+            } else {
+              pwdGroup.classList.add('hidden');
+            }
           }
-        }
+        });
       });
-    });
 
-    // Navigation buttons
-    document.getElementById('btnNavOffline').addEventListener('click', () => {
-      sound.playClick();
-      this.showView('viewOffline');
-    });
-    document.getElementById('btnNavCreateRoom').addEventListener('click', () => {
-      sound.playClick();
-      this.showView('viewCreateRoom');
-    });
-    document.getElementById('btnNavFindRoom').addEventListener('click', () => {
-      sound.playClick();
-      this.showView('viewFindRoom');
-      this.network.queryActiveRooms();
-      this.renderPublicRooms(this.network.getCleanRoomList());
-    });
+      // Role Selection control for Host (Player vs Spectator)
+      document.querySelectorAll('#createRoomRoleControl .seg-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          sound.playClick();
+          document.querySelectorAll('#createRoomRoleControl .seg-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+        });
+      });
 
-    // Refresh Public Rooms button
-    const btnRefresh = document.getElementById('btnRefreshRooms');
-    if (btnRefresh) {
-      btnRefresh.addEventListener('click', () => {
+      // Navigation buttons
+      document.getElementById('btnNavOffline').addEventListener('click', () => {
         sound.playClick();
-        btnRefresh.classList.add('rotating');
-        setTimeout(() => btnRefresh.classList.remove('rotating'), 600);
+        this.showView('viewOffline');
+      });
+      document.getElementById('btnNavCreateRoom').addEventListener('click', () => {
+        sound.playClick();
+        this.showView('viewCreateRoom');
+      });
+      document.getElementById('btnNavFindRoom').addEventListener('click', () => {
+        sound.playClick();
+        this.showView('viewFindRoom');
         this.network.queryActiveRooms();
         this.renderPublicRooms(this.network.getCleanRoomList());
       });
-    }
 
-    // Back buttons
-    document.querySelectorAll('.btn-back').forEach(btn => {
-      btn.addEventListener('click', () => {
+      // Refresh Public Rooms button
+      const btnRefresh = document.getElementById('btnRefreshRooms');
+      if (btnRefresh) {
+        btnRefresh.addEventListener('click', () => {
+          sound.playClick();
+          btnRefresh.classList.add('rotating');
+          setTimeout(() => btnRefresh.classList.remove('rotating'), 600);
+          this.network.queryActiveRooms();
+          this.renderPublicRooms(this.network.getCleanRoomList());
+        });
+      }
+
+      // Back buttons
+      document.querySelectorAll('.btn-back').forEach(btn => {
+        btn.addEventListener('click', () => {
+          sound.playClick();
+          this.showView(btn.dataset.back);
+        });
+      });
+
+      // Start Offline Match
+      document.getElementById('btnStartOffline').addEventListener('click', () => {
         sound.playClick();
-        this.showView(btn.dataset.back);
+        this.startOfflineMatch();
       });
-    });
 
-    // Start Offline Match
-    document.getElementById('btnStartOffline').addEventListener('click', () => {
-      sound.playClick();
-      this.startOfflineMatch();
-    });
+      // Create Room
+      document.getElementById('btnConfirmCreateRoom').addEventListener('click', () => {
+        sound.playClick();
+        const roomName = (document.getElementById('createRoomNameInput').value || '').trim();
+        const isPrivate = document.querySelector('#roomPrivacyControl .seg-btn.active').dataset.privacy === 'private';
+        const isSpectator = document.querySelector('#createRoomRoleControl .seg-btn.active')?.dataset.role === 'spectator';
+        const password = (document.getElementById('createRoomPasswordInput').value || '').trim();
+        const myName = (document.getElementById('playerNameInput').value || '').trim() || 'ChromaKnight';
 
-    // Create Room
-    document.getElementById('btnConfirmCreateRoom').addEventListener('click', () => {
-      sound.playClick();
-      const roomName = (document.getElementById('createRoomNameInput').value || '').trim();
-      const isPrivate = document.querySelector('#roomPrivacyControl .seg-btn.active').dataset.privacy === 'private';
-      const password = (document.getElementById('createRoomPasswordInput').value || '').trim();
-      const myName = (document.getElementById('playerNameInput').value || '').trim() || 'ChromaKnight';
+        if (isPrivate && !password) {
+          window.appAlert('Vui lòng nhập mật khẩu cho phòng riêng tư!', 'CHÚ Ý', 'warning');
+          const pwdInput = document.getElementById('createRoomPasswordInput');
+          if (pwdInput) pwdInput.focus();
+          return;
+        }
 
-      if (isPrivate && !password) {
-        window.appAlert('Vui lòng nhập mật khẩu cho phòng riêng tư!', 'CHÚ Ý', 'warning');
-        const pwdInput = document.getElementById('createRoomPasswordInput');
-        if (pwdInput) pwdInput.focus();
-        return;
-      }
+        const activeColor = document.querySelector('.color-choice.active');
+        const colorIdx = activeColor ? parseInt(activeColor.dataset.colorIdx, 10) : 0;
+        const playerColor = PLAYER_PROFILES[colorIdx] ? PLAYER_PROFILES[colorIdx].color : PLAYER_PROFILES[0].color;
 
-      const activeColor = document.querySelector('.color-choice.active');
-      const colorIdx = activeColor ? parseInt(activeColor.dataset.colorIdx, 10) : 0;
-      const playerColor = PLAYER_PROFILES[colorIdx] ? PLAYER_PROFILES[colorIdx].color : PLAYER_PROFILES[0].color;
+        const createBtn = document.getElementById('btnConfirmCreateRoom');
+        createBtn.disabled = true;
+        createBtn.innerHTML = '<span class="btn-icon-lead">⏳</span> ĐANG TẠO PHÒNG...';
 
-      const createBtn = document.getElementById('btnConfirmCreateRoom');
-      createBtn.disabled = true;
-      createBtn.innerHTML = '<span class="btn-icon-lead">⏳</span> ĐANG TẠO PHÒNG...';
-
-      this.network.createRoom(
-        { roomName: roomName || `Phòng của ${myName}`, isPrivate, password },
-        { name: myName, color: playerColor },
-        (code) => {
-          createBtn.disabled = false;
-          createBtn.innerHTML = '<span class="btn-icon-lead">🚀</span> TẠO PHÒNG & LẤY MÃ CODE';
-          document.getElementById('displayRoomCode').innerText = code;
-          const hostBadge = document.getElementById('hostPrivacyBadge');
-          if (hostBadge) {
-            hostBadge.innerText = isPrivate ? '🔒 Riêng Tư' : '🌐 Công Khai';
-            hostBadge.className = isPrivate ? 'badge-privacy badge-private' : 'badge-privacy badge-public';
+        this.network.createRoom(
+          { roomName: roomName || `Phòng của ${myName}`, isPrivate, password, isSpectator },
+          { name: myName, color: playerColor },
+          (code) => {
+            createBtn.disabled = false;
+            createBtn.innerHTML = '<span class="btn-icon-lead">🚀</span> TẠO PHÒNG & LẤY MÃ CODE';
+            document.getElementById('displayRoomCode').innerText = code;
+            const hostBadge = document.getElementById('hostPrivacyBadge');
+            if (hostBadge) {
+              hostBadge.innerText = isPrivate ? '🔒 Riêng Tư' : '🌐 Công Khai';
+              hostBadge.className = isPrivate ? 'badge-privacy badge-private' : 'badge-privacy badge-public';
+            }
+            this.showView('viewHostWaiting');
+            this.updateHostLobbyUI();
+          },
+          (err) => {
+            createBtn.disabled = false;
+            createBtn.innerHTML = '<span class="btn-icon-lead">🚀</span> TẠO PHÒNG & LẤY MÃ CODE';
+            window.appAlert('Lỗi tạo phòng: ' + err, 'LỖI TẠO PHÒNG', 'error');
           }
-          this.showView('viewHostWaiting');
-          this.updateHostLobbyUI();
-        },
-        (err) => {
-          createBtn.disabled = false;
-          createBtn.innerHTML = '<span class="btn-icon-lead">🚀</span> TẠO PHÒNG & LẤY MÃ CODE';
-          window.appAlert('Lỗi tạo phòng: ' + err, 'LỖI TẠO PHÒNG', 'error');
-        }
-      );
-    });
-
-    document.getElementById('btnHostStartMatch').addEventListener('click', () => {
-      sound.playClick();
-      this.startOnlineMatchAsHost();
-    });
-
-    document.getElementById('btnCancelHost').addEventListener('click', () => {
-      sound.playClick();
-      this.network.disconnect();
-      this.showView('viewMain');
-    });
-
-    // Direct Join
-    document.getElementById('btnJoinDirect').addEventListener('click', () => {
-      sound.playClick();
-      const codeInput = document.getElementById('joinDirectCodeInput');
-      const code = (codeInput ? codeInput.value : '').trim();
-      if (!code) {
-        window.appAlert('Vui lòng nhập mã phòng (Ví dụ: CSP-XXXX hoặc XXXX)!', 'CHÚ Ý', 'warning');
-        if (codeInput) codeInput.focus();
-        return;
-      }
-      this.executeJoinRoom(code, '');
-    });
-
-    // Enter key inside Direct Join Input
-    const directCodeInput = document.getElementById('joinDirectCodeInput');
-    if (directCodeInput) {
-      directCodeInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          document.getElementById('btnJoinDirect').click();
-        }
+        );
       });
-    }
 
-    document.getElementById('btnLeaveGuest').addEventListener('click', () => {
-      sound.playClick();
-      this.network.disconnect();
-      this.showView('viewMain');
-    });
+      document.getElementById('btnHostStartMatch').addEventListener('click', () => {
+        sound.playClick();
+        this.startOnlineMatchAsHost();
+      });
+
+      document.getElementById('btnCancelHost').addEventListener('click', () => {
+        sound.playClick();
+        this.network.disconnect();
+        this.showView('viewMain');
+      });
+
+      // Host Role Toggle
+      const btnHostToggle = document.getElementById('btnHostToggleRole');
+      if (btnHostToggle) {
+        btnHostToggle.addEventListener('click', () => {
+          sound.playClick();
+          const nextRole = this.network.isSpectator ? 'player' : 'spectator';
+          this.network.requestRoleSwitch(nextRole);
+        });
+      }
+
+      // Guest Role Switch
+      const btnGuestSwitch = document.getElementById('btnGuestSwitchRole');
+      if (btnGuestSwitch) {
+        btnGuestSwitch.addEventListener('click', () => {
+          sound.playClick();
+          const nextRole = this.network.isSpectator ? 'player' : 'spectator';
+          this.network.requestRoleSwitch(nextRole);
+        });
+      }
+
+      // Direct Join as Player
+      document.getElementById('btnJoinDirect').addEventListener('click', () => {
+        sound.playClick();
+        const codeInput = document.getElementById('joinDirectCodeInput');
+        const code = (codeInput ? codeInput.value : '').trim();
+        if (!code) {
+          window.appAlert('Vui lòng nhập mã phòng (Ví dụ: CSP-XXXX hoặc XXXX)!', 'CHÚ Ý', 'warning');
+          if (codeInput) codeInput.focus();
+          return;
+        }
+        this.executeJoinRoom(code, '', false);
+      });
+
+      // Direct Join as Spectator (Esports Liên Quân Style)
+      const btnSpecDirect = document.getElementById('btnSpectateDirect');
+      if (btnSpecDirect) {
+        btnSpecDirect.addEventListener('click', () => {
+          sound.playClick();
+          const codeInput = document.getElementById('joinDirectCodeInput');
+          const code = (codeInput ? codeInput.value : '').trim();
+          if (!code) {
+            window.appAlert('Vui lòng nhập mã phòng muốn vào xem (Ví dụ: CSP-XXXX hoặc XXXX)!', 'CHÚ Ý', 'warning');
+            if (codeInput) codeInput.focus();
+            return;
+          }
+          this.executeJoinRoom(code, '', true);
+        });
+      }
+
+      // Enter key inside Direct Join Input
+      const directCodeInput = document.getElementById('joinDirectCodeInput');
+      if (directCodeInput) {
+        directCodeInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            document.getElementById('btnJoinDirect').click();
+          }
+        });
+      }
+
+      document.getElementById('btnLeaveGuest').addEventListener('click', () => {
+        sound.playClick();
+        this.network.disconnect();
+        this.showView('viewMain');
+      });
+
+      // Spectator In-Match Tournament Buttons
+      const btnOpenStats = document.getElementById('btnOpenSpectatorStats');
+      if (btnOpenStats) {
+        btnOpenStats.addEventListener('click', () => {
+          sound.playClick();
+          this.openSpectatorStatsModal();
+        });
+      }
+      const btnCloseStats = document.getElementById('btnCloseSpectatorStats');
+      if (btnCloseStats) {
+        btnCloseStats.addEventListener('click', () => {
+          sound.playClick();
+          document.getElementById('spectatorStatsModal').classList.add('hidden');
+        });
+      }
+      const btnGotStats = document.getElementById('btnGotSpectatorStats');
+      if (btnGotStats) {
+        btnGotStats.addEventListener('click', () => {
+          sound.playClick();
+          document.getElementById('spectatorStatsModal').classList.add('hidden');
+        });
+      }
+      const btnSpecQuit = document.getElementById('btnSpectatorQuit');
+      if (btnSpecQuit) {
+        btnSpecQuit.addEventListener('click', async () => {
+          const confirmQuit = await window.appConfirm('Bạn có chắc chắn muốn rời xem trận đấu và trở về sảnh?', 'RỜI XEM TRẬN ĐẤU');
+          if (confirmQuit) {
+            this.exitMatchToLobby();
+          }
+        });
+      }
 
     // Audio & Header Actions
     document.getElementById('btnSoundToggle').addEventListener('click', () => {
@@ -993,7 +1076,8 @@ class ColorSpillGame {
 
   startOnlineMatchAsHost() {
     this.isMatchActive = true;
-    this.localPlayerId = 1;
+    this.isSpectator = !!this.network.isSpectator;
+    this.localPlayerId = this.isSpectator ? 0 : 1;
 
     // Use players in lobby, fill remaining with Bot if needed
     const lobby = this.network.lobbyPlayers;
@@ -1034,9 +1118,10 @@ class ColorSpillGame {
     });
   }
 
-  startOnlineMatchAsGuest(matchData, myNetId) {
+  startOnlineMatchAsGuest(matchData, myNetId, isSpectator = false) {
     this.isMatchActive = true;
-    this.localPlayerId = myNetId;
+    this.isSpectator = isSpectator || (myNetId === 0) || !!this.network.isSpectator;
+    this.localPlayerId = this.isSpectator ? 0 : myNetId;
     this.players = matchData.players;
     this.initBoardData();
     this.setupMatchCommon(true);
@@ -1072,7 +1157,296 @@ class ColorSpillGame {
 
     sound.playBgm('match');
     this.updateHUD();
-    this.renderHandCardsUI();
+
+    if (this.isSpectator) {
+      this.setupSpectatorModeUI();
+    } else {
+      this.setupPlayerModeUI();
+      this.renderHandCardsUI();
+    }
+  }
+
+  setupSpectatorModeUI() {
+    document.getElementById('gameScreen').classList.add('spectator-active');
+    document.getElementById('spectatorTournamentBar').classList.remove('hidden');
+    document.getElementById('playerDockHeader').classList.add('hidden');
+    document.getElementById('spectatorInspectorHeader').classList.remove('hidden');
+
+    // Update spectator live count
+    const specCount = (this.network.lobbySpectators && this.network.lobbySpectators.length) || 1;
+    const liveEl = document.getElementById('specLiveCount');
+    if (liveEl) liveEl.innerText = `👁️ ${specCount} Khán Giả`;
+
+    // Populate spotlight buttons in top tournament bar
+    const spotContainer = document.getElementById('specSpotlightControls');
+    if (spotContainer) {
+      spotContainer.innerHTML = `
+        <span class="spotlight-label">🎥 TIÊU ĐIỂM:</span>
+        <button type="button" class="spec-spot-btn ${this.spectatorSpotlightPlayerId === null ? 'active' : ''}" data-spot="all">Toàn Cảnh</button>
+        ${this.players.map(p => `
+          <button type="button" class="spec-spot-btn ${this.spectatorSpotlightPlayerId === p.id ? 'active' : ''}" data-spot="${p.id}">
+            <span class="spot-dot" style="background: ${p.color};"></span>
+            ${p.name.length > 7 ? p.name.substring(0, 6) + '…' : p.name}
+          </button>
+        `).join('')}
+      `;
+      spotContainer.querySelectorAll('.spec-spot-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          sound.playClick();
+          spotContainer.querySelectorAll('.spec-spot-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          const spot = btn.dataset.spot;
+          this.spectatorSpotlightPlayerId = (spot === 'all') ? null : parseInt(spot, 10);
+          if (this.spectatorSpotlightPlayerId) {
+            const spPlayer = this.getPlayerById(this.spectatorSpotlightPlayerId);
+            window.showToast(`🎥 Đang chiếu tiêu điểm lãnh thổ: ${spPlayer ? spPlayer.name : 'Tuyển thủ ' + spot}`, 'info');
+          } else {
+            window.showToast('🎥 Chế độ tiêu điểm: Toàn cảnh đấu trường', 'info');
+          }
+        });
+      });
+    }
+
+    // Populate player tabs in hand inspector dock
+    const tabContainer = document.getElementById('spectatorPlayerTabs');
+    if (tabContainer) {
+      tabContainer.innerHTML = `
+        <button type="button" class="spec-tab-btn ${this.spectatorInspectedPlayerId === 'all' ? 'active' : ''}" data-player="all">🌐 TẤT CẢ</button>
+        ${this.players.map(p => `
+          <button type="button" class="spec-tab-btn ${this.spectatorInspectedPlayerId === p.id ? 'active' : ''}" data-player="${p.id}">
+            <span class="tab-dot" style="background: ${p.color};"></span>
+            ${p.name.length > 7 ? p.name.substring(0, 6) + '…' : p.name}
+            <span class="tab-badge-count">(${p.handCards.length})</span>
+          </button>
+        `).join('')}
+      `;
+      tabContainer.querySelectorAll('.spec-tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          sound.playClick();
+          tabContainer.querySelectorAll('.spec-tab-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          const pId = btn.dataset.player;
+          this.spectatorInspectedPlayerId = (pId === 'all') ? 'all' : parseInt(pId, 10);
+          this.renderSpectatorInspectorUI();
+        });
+      });
+    }
+
+    this.renderSpectatorInspectorUI();
+    this.setBanner('👁️ CHẾ ĐỘ QUAN SÁT GIẢI ĐẤU (ESPORTS SPECTATOR)', 'Bạn đang xem trực tiếp trận đấu • Bấm [SO KÈO TUYỂN THỦ] để phân tích số liệu!');
+  }
+
+  setupPlayerModeUI() {
+    document.getElementById('gameScreen').classList.remove('spectator-active');
+    document.getElementById('spectatorTournamentBar').classList.add('hidden');
+    document.getElementById('playerDockHeader').classList.remove('hidden');
+    document.getElementById('spectatorInspectorHeader').classList.add('hidden');
+  }
+
+  renderSpectatorInspectorUI() {
+    if (!this.isSpectator) return;
+    const rowEl = document.getElementById('cardsHandRow');
+    if (!rowEl) return;
+
+    const targetBadge = document.getElementById('spectatorInspectTargetBadge');
+
+    if (this.spectatorInspectedPlayerId === 'all') {
+      if (targetBadge) targetBadge.innerText = '🌐 Xem Bài Toàn Bộ Tuyển Thủ';
+
+      let html = '<div class="spectator-all-hands-grid">';
+      this.players.forEach(p => {
+        const isCurrentTurn = (this.getActivePlayer()?.id === p.id);
+        html += `
+          <div class="spec-player-hand-column ${isCurrentTurn ? 'active-turn-col' : ''}">
+            <div class="spec-hand-col-header" style="border-left: 3px solid ${p.color};">
+              <span class="col-dot" style="background: ${p.color};"></span>
+              <strong class="col-name">${this.escapeHtml(p.name)}</strong>
+              <span class="col-card-count">(${p.handCards.length}/5)</span>
+              ${isCurrentTurn ? '<span class="col-turn-tag">ĐANG ĐI</span>' : ''}
+            </div>
+            <div class="spec-col-cards">
+              ${p.handCards.length === 0 ? '<div class="spec-empty-hint">Hết bài trên tay</div>' : p.handCards.map(card => {
+                const isPassive = card.isPassive || card.id === 'Shield' || card.id === 'Counter';
+                const isShard = card.id && card.id.startsWith('Shard');
+                return `
+                  <div class="spec-mini-card ${isPassive ? 'passive' : ''} ${isShard ? 'shard' : ''}" title="${this.escapeHtml(card.name)}: ${this.escapeHtml(card.desc)}">
+                    <img src="${card.icon}" class="mini-card-icon" onerror="this.src='assets/cards/Shield.png'" />
+                    <div class="mini-card-info">
+                      <span class="mini-card-name">${this.escapeHtml(card.name)}</span>
+                      <span class="mini-card-tag">${isPassive ? '🛡️ BỊ ĐỘNG' : (isShard ? '💎 EXODIA' : card.type || 'THẺ')}</span>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        `;
+      });
+      html += '</div>';
+      rowEl.innerHTML = html;
+    } else {
+      const p = this.getPlayerById(this.spectatorInspectedPlayerId);
+      if (!p) {
+        this.spectatorInspectedPlayerId = 'all';
+        this.renderSpectatorInspectorUI();
+        return;
+      }
+
+      if (targetBadge) {
+        targetBadge.innerHTML = `<span class="target-dot" style="background: ${p.color};"></span> Đang soi: ${this.escapeHtml(p.name)} (${p.handCards.length} thẻ)`;
+      }
+
+      if (p.handCards.length === 0) {
+        rowEl.innerHTML = `<div class="empty-hand-hint">Tuyển thủ <strong>${this.escapeHtml(p.name)}</strong> hiện không còn lá bài nào trên tay.</div>`;
+        return;
+      }
+
+      rowEl.innerHTML = p.handCards.map((card, idx) => {
+        const isPassive = card.isPassive || card.id === 'Shield' || card.id === 'Counter';
+        const isShard = card.id && card.id.startsWith('Shard');
+        const cardType = card.type || (isShard ? 'Buff' : 'Neutral');
+
+        let typeLabel = cardType.toUpperCase();
+        let typeClass = `type-${cardType.toLowerCase()}`;
+        let borderClass = `card-${cardType.toLowerCase()}`;
+
+        if (isPassive) {
+          typeLabel = 'BỊ ĐỘNG';
+          typeClass = 'type-passive';
+          borderClass = 'card-passive';
+        } else if (isShard) {
+          typeLabel = 'EXODIA';
+          typeClass = 'type-shard';
+          borderClass = 'card-shard';
+        }
+
+        return `
+          <div class="game-card-item spec-inspect-card ${borderClass}" data-card-idx="${idx}">
+            <div class="card-type-tag ${typeClass}">${typeLabel}</div>
+            <div class="card-img-wrap">
+              <img src="${card.icon}" alt="${this.escapeHtml(card.name)}" class="card-icon-img" onerror="this.src='assets/cards/Shield.png'" />
+            </div>
+            <div class="card-title">${this.escapeHtml(card.name)}</div>
+            <div class="card-desc">${this.escapeHtml(card.desc)}</div>
+            <div class="card-target-hint">${isPassive ? '🛡️ Tự động kích hoạt khi bị công' : (isShard ? '💎 Ghép 5 mảnh thắng' : '⚡ Thẻ ma thuật')}</div>
+          </div>
+        `;
+      }).join('');
+    }
+  }
+
+  openSpectatorStatsModal() {
+    const modal = document.getElementById('spectatorStatsModal');
+    const content = document.getElementById('spectatorStatsContent');
+    if (!modal || !content) return;
+
+    this.recalculateCellCounts();
+    const active = this.getActivePlayer();
+
+    content.innerHTML = `
+      <div class="esports-stats-banner">
+        <div class="stats-banner-item">
+          <span class="stats-label">VÒNG ĐẤU:</span>
+          <span class="stats-value text-teal">Vòng #${this.turnNumber}</span>
+        </div>
+        <div class="stats-banner-item">
+          <span class="stats-label">LƯỢT HIỆN TẠI:</span>
+          <span class="stats-value" style="color: ${active ? active.color : '#fff'};">👑 ${active ? active.name : 'N/A'}</span>
+        </div>
+        <div class="stats-banner-item">
+          <span class="stats-label">BỘ BÀI CÒN:</span>
+          <span class="stats-value text-yellow">🃏 ${this.mainDeck.length} lá</span>
+        </div>
+        <div class="stats-banner-item">
+          <span class="stats-label">KHÁN GIẢ XEM:</span>
+          <span class="stats-value text-cyan">👁️ ${(this.network.lobbySpectators && this.network.lobbySpectators.length) || 1} người</span>
+        </div>
+      </div>
+
+      <div class="esports-comparison-grid">
+        ${this.players.map((p, idx) => {
+          const pct = ((p.cellCount / this.totalCells) * 100).toFixed(1);
+          const isTurn = (active && active.id === p.id);
+          const shards = p.handCards.filter(c => c.id && c.id.startsWith('Shard')).length;
+          const hasShield = p.handCards.some(c => c.id === 'Shield');
+          const hasCounter = p.handCards.some(c => c.id === 'Counter');
+
+          return `
+            <div class="esports-player-column ${isTurn ? 'turn-focus' : ''} ${p.eliminated ? 'eliminated' : ''}">
+              <div class="esp-col-header" style="background: linear-gradient(135deg, ${p.color}33, transparent); border-top: 3px solid ${p.color};">
+                <div class="esp-avatar" style="background: ${p.color}; box-shadow: 0 0 10px ${p.color};"></div>
+                <div class="esp-pinfo">
+                  <span class="esp-pname">${this.escapeHtml(p.name)}</span>
+                  <span class="esp-prole">${p.isHuman ? '👤 Tuyển Thủ' : '🤖 AI Bot'}</span>
+                </div>
+                ${isTurn ? '<span class="esp-live-dot" title="Đang trong lượt">👑 LƯỢT</span>' : ''}
+              </div>
+
+              <div class="esp-metric-group">
+                <div class="esp-metric-row">
+                  <span class="metric-lbl">Kiểm soát bản đồ:</span>
+                  <strong class="metric-val text-teal">${pct}% (${p.cellCount} ô)</strong>
+                </div>
+                <div class="esp-progress-bar">
+                  <div class="esp-progress-fill" style="width: ${pct}%; background: ${p.color};"></div>
+                </div>
+              </div>
+
+              <div class="esp-metric-badges">
+                <div class="esp-badge-pill" title="Số thẻ đang cầm trên tay">
+                  <span class="badge-icon">🃏</span>
+                  <span>Bài trên tay: <strong>${p.handCards.length}/5</strong></span>
+                </div>
+                <div class="esp-badge-pill" title="Mảnh Exodia đã thu thập">
+                  <span class="badge-icon">💎</span>
+                  <span>Mảnh Exodia: <strong>${shards}/5</strong></span>
+                </div>
+              </div>
+
+              <div class="esp-buff-list">
+                <div class="buff-title">TRẠNG THÁI & BẢO VỆ:</div>
+                <div class="buff-items-row">
+                  ${hasShield ? '<span class="esp-tag tag-shield">🛡️ Khiên Sẵn Sàng</span>' : ''}
+                  ${hasCounter ? '<span class="esp-tag tag-counter">⚔️ Phản Đòn Sẵn Sàng</span>' : ''}
+                  ${p.rivalImmunityTurns > 0 ? '<span class="esp-tag tag-immortal">🌟 Bất Hoại</span>' : ''}
+                  ${p.isBanned ? '<span class="esp-tag tag-debuff">🚫 Bị Cấm Lượt</span>' : ''}
+                  ${p.disabledHandTurns > 0 ? '<span class="esp-tag tag-debuff">🔒 Bị Khóa Bài</span>' : ''}
+                  ${(!hasShield && !hasCounter && p.rivalImmunityTurns <= 0 && !p.isBanned && p.disabledHandTurns <= 0) ? '<span class="esp-tag-muted">Bình thường</span>' : ''}
+                </div>
+              </div>
+
+              <div class="esp-action-focus">
+                <button type="button" class="btn-focus-player" data-player="${p.id}" style="border-color: ${p.color}; color: ${p.color};">
+                  🎯 Chiếu Tiêu Điểm
+                </button>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+
+    content.querySelectorAll('.btn-focus-player').forEach(btn => {
+      btn.addEventListener('click', () => {
+        sound.playClick();
+        const pId = parseInt(btn.dataset.player, 10);
+        this.spectatorSpotlightPlayerId = pId;
+        const spPlayer = this.getPlayerById(pId);
+        window.showToast(`🎥 Đang chiếu tiêu điểm lãnh thổ: ${spPlayer ? spPlayer.name : 'Tuyển thủ ' + pId}`, 'info');
+        document.querySelectorAll('#specSpotlightControls .spec-spot-btn').forEach(b => {
+          b.classList.toggle('active', b.dataset.spot === String(pId));
+        });
+        modal.classList.add('hidden');
+      });
+    });
+
+    modal.classList.remove('hidden');
+  }
+
+  onEsportsCombatEvent(event) {
+    if (!event) return;
+    this.setBanner(`⚡ [ESPORTS LIVE]:`, event.message);
+    window.showToast(event.message, event.type === 'CAPTURE' ? 'success' : 'info');
   }
 
   // ------------------------------------------------------
@@ -1235,8 +1609,11 @@ class ColorSpillGame {
 
   recalculateCellCounts() {
     this.players.forEach(p => p.cellCount = 0);
+    if (!this.grid || !this.grid.length) return;
     for (let x = 0; x < BOARD_SIZE; x++) {
+      if (!this.grid[x]) continue;
       for (let y = 0; y < BOARD_SIZE; y++) {
+        if (!this.grid[x][y]) continue;
         const owner = this.grid[x][y].owner;
         const p = this.getPlayerById(owner);
         if (p) p.cellCount++;
@@ -1443,9 +1820,16 @@ class ColorSpillGame {
     }
 
     // Show Game Over Modal
-    document.getElementById('gameOverTitle').innerText = isMe ? 'CHIẾN THẮNG HUY HOÀNG!' : `${winner.name} THẮNG TRẬN!`;
+    // Show Game Over Modal
+    if (this.isSpectator) {
+      document.getElementById('gameOverTitle').innerText = `🏆 TRẬN ĐẤU KẾT THÚC: ${winner ? winner.name : 'VÔ ĐỊCH'}!`;
+      document.getElementById('gameOverIcon').innerText = '🏆';
+      sound.playWin();
+    } else {
+      document.getElementById('gameOverTitle').innerText = isMe ? 'CHIẾN THẮNG HUY HOÀNG!' : `${winner ? winner.name : 'Đối thủ'} THẮNG TRẬN!`;
+      document.getElementById('gameOverIcon').innerText = isMe ? '🏆' : '💀';
+    }
     document.getElementById('gameOverSub').innerText = subtitle;
-    document.getElementById('gameOverIcon').innerText = isMe ? '🏆' : '💀';
 
     const statsEl = document.getElementById('gameOverStats');
     statsEl.innerHTML = this.players.map(pl => `
@@ -1467,6 +1851,13 @@ class ColorSpillGame {
     clearInterval(this.timerInterval);
     sound.stopBgm();
 
+    if (this.network.isOnline) {
+      this.network.disconnect();
+    }
+
+    document.getElementById('gameScreen').classList.remove('spectator-active');
+    const specBar = document.getElementById('spectatorTournamentBar');
+    if (specBar) specBar.classList.add('hidden');
     document.getElementById('gameScreen').classList.add('hidden');
     document.getElementById('gameHud').classList.add('hidden');
     document.getElementById('setupScreen').classList.remove('hidden');
@@ -2120,6 +2511,25 @@ class ColorSpillGame {
   }
 
   handleCanvasCellClick(x, y) {
+    if (this.isSpectator) {
+      const cell = this.grid[x] ? this.grid[x][y] : null;
+      if (cell && cell.owner !== 0) {
+        sound.playClick();
+        if (this.spectatorSpotlightPlayerId === cell.owner) {
+          this.spectatorSpotlightPlayerId = null;
+          window.showToast('🎥 Đã tắt tiêu điểm, xem toàn cảnh đấu trường', 'info');
+        } else {
+          this.spectatorSpotlightPlayerId = cell.owner;
+          const p = this.getPlayerById(cell.owner);
+          window.showToast(`🎥 Đang chiếu tiêu điểm lãnh thổ: ${p ? p.name : 'Tuyển thủ ' + cell.owner}`, 'info');
+        }
+        document.querySelectorAll('#specSpotlightControls .spec-spot-btn').forEach(b => {
+          b.classList.toggle('active', this.spectatorSpotlightPlayerId ? b.dataset.spot === String(this.spectatorSpotlightPlayerId) : b.dataset.spot === 'all');
+        });
+      }
+      return;
+    }
+
     const active = this.getActivePlayer();
     if (!active) return;
 
@@ -2263,6 +2673,18 @@ class ColorSpillGame {
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText('✝️', px + this.cellSize / 2, py + this.cellSize / 2);
+          }
+
+          // SPECTATOR SPOTLIGHT TERRITORY GLOW (LIÊN QUÂN ESPORTS CAMERA FOCUS)
+          if (this.isSpectator && this.spectatorSpotlightPlayerId !== null && cell.owner === this.spectatorSpotlightPlayerId) {
+            const pulse = (Math.sin(Date.now() * 0.008) + 1) * 0.5;
+            ctx.save();
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2.5 + pulse * 1.5;
+            ctx.shadowColor = p ? p.color : '#00e5ff';
+            ctx.shadowBlur = 10 + pulse * 8;
+            ctx.strokeRect(px + 1.5, py + 1.5, this.cellSize - 3, this.cellSize - 3);
+            ctx.restore();
           }
         }
       }
@@ -2782,30 +3204,113 @@ class ColorSpillGame {
   // ------------------------------------------------------
   updateHostLobbyUI() {
     const listEl = document.getElementById('hostPlayerList');
-    document.getElementById('hostPlayerCount').innerText = this.network.lobbyPlayers.length;
+    const pCountEl = document.getElementById('hostPlayerCount');
+    if (pCountEl) pCountEl.innerText = this.network.lobbyPlayers.length;
 
-    listEl.innerHTML = this.network.lobbyPlayers.map((p, i) => `
-      <li class="waiting-item">
-        <div class="waiting-avatar" style="background: ${PLAYER_PROFILES[i].color}"></div>
-        <span class="waiting-name">${p.name}</span>
-        ${p.isHost ? '<span class="badge-host">👑 CHỦ PHÒNG</span>' : ''}
-      </li>
-    `).join('');
+    if (listEl) {
+      listEl.innerHTML = this.network.lobbyPlayers.map((p, i) => `
+        <li class="waiting-item">
+          <div class="waiting-avatar" style="background: ${PLAYER_PROFILES[i] ? PLAYER_PROFILES[i].color : '#1acc33'}"></div>
+          <span class="waiting-name">${this.escapeHtml(p.name)}</span>
+          ${p.isHost ? '<span class="badge-host">👑 CHỦ PHỔNG</span>' : ''}
+        </li>
+      `).join('');
+    }
+
+    const specListEl = document.getElementById('hostSpectatorList');
+    const specCountEl = document.getElementById('hostSpectatorCount');
+    const specs = this.network.lobbySpectators || [];
+    if (specCountEl) specCountEl.innerText = specs.length;
+    if (specListEl) {
+      if (specs.length === 0) {
+        specListEl.innerHTML = '<li class="waiting-item-empty">Chưa có khán giả nào vào xem.</li>';
+      } else {
+        specListEl.innerHTML = specs.map(s => `
+          <li class="waiting-item spectator-item">
+            <span class="spec-eye-icon">👁️</span>
+            <span class="waiting-name">${this.escapeHtml(s.name)}</span>
+            <span class="badge-spectator">KHÁN GIẢ</span>
+            ${s.isHost ? '<span class="badge-host">👑 CHỦ PHÒNG</span>' : ''}
+          </li>
+        `).join('');
+      }
+    }
+
+    const hostToggleText = document.getElementById('hostRoleToggleText');
+    const hostRoleBadge = document.getElementById('hostRoleBadge');
+    if (hostToggleText) {
+      hostToggleText.innerText = this.network.isSpectator ? 'Trở thành Đấu Thủ' : 'Trở thành Khán Giả';
+    }
+    if (hostRoleBadge) {
+      hostRoleBadge.innerText = this.network.isSpectator ? '👁️ Khán Giả / Trọng Tài' : '⚔️ Đấu Thủ';
+      hostRoleBadge.className = this.network.isSpectator ? 'badge-role badge-role-spec' : 'badge-role';
+    }
   }
 
-  onLobbyUpdate(players) {
+  onLobbyUpdate(players, spectators = []) {
     if (this.network.isHost) {
       this.updateHostLobbyUI();
     } else {
       const listEl = document.getElementById('guestPlayerList');
-      listEl.innerHTML = players.map((p, i) => `
-        <li class="waiting-item">
-          <div class="waiting-avatar" style="background: ${PLAYER_PROFILES[i].color}"></div>
-          <span class="waiting-name">${p.name}</span>
-          ${p.isHost ? '<span class="badge-host">👑 CHỦ PHÒNG</span>' : ''}
-        </li>
-      `).join('');
+      if (listEl) {
+        listEl.innerHTML = players.map((p, i) => `
+          <li class="waiting-item">
+            <div class="waiting-avatar" style="background: ${PLAYER_PROFILES[i] ? PLAYER_PROFILES[i].color : '#1acc33'}"></div>
+            <span class="waiting-name">${this.escapeHtml(p.name)}</span>
+            ${p.isHost ? '<span class="badge-host">👑 CHỦ PHÒNG</span>' : ''}
+          </li>
+        `).join('');
+      }
+
+      const specListEl = document.getElementById('guestSpectatorList');
+      const specCountEl = document.getElementById('guestSpectatorCount');
+      if (specCountEl) specCountEl.innerText = spectators.length;
+      if (specListEl) {
+        if (spectators.length === 0) {
+          specListEl.innerHTML = '<li class="waiting-item-empty">Chưa có khán giả nào vào xem.</li>';
+        } else {
+          specListEl.innerHTML = spectators.map(s => `
+            <li class="waiting-item spectator-item">
+              <span class="spec-eye-icon">👁️</span>
+              <span class="waiting-name">${this.escapeHtml(s.name)}</span>
+              <span class="badge-spectator">KHÁN GIẢ</span>
+              ${s.isHost ? '<span class="badge-host">👑 CHỦ PHÒNG</span>' : ''}
+            </li>
+          `).join('');
+        }
+      }
+
+      this.updateRoleUI();
     }
+  }
+
+  updateRoleUI() {
+    const roleBadge = document.getElementById('guestRoleBadge');
+    const switchBtnText = document.getElementById('guestSwitchRoleText');
+    const hintEl = document.getElementById('guestWaitingHint');
+
+    if (roleBadge) {
+      roleBadge.innerText = this.network.isSpectator ? '👁️ Khán Giả (Spectator)' : '⚔️ Đấu Thủ';
+      roleBadge.className = this.network.isSpectator ? 'badge-role badge-role-spec' : 'badge-role';
+    }
+    if (switchBtnText) {
+      switchBtnText.innerText = this.network.isSpectator ? 'Đấu Thủ Thi Đấu' : 'Khán Giả (Spectator)';
+    }
+    if (hintEl) {
+      hintEl.innerText = this.network.isSpectator
+        ? '👁️ Bạn đang là Khán giả. Đang chờ trận đấu bắt đầu để vào xem trực tiếp...'
+        : '⏳ Đang chờ Chủ phòng bấm nút bắt đầu trận đấu...';
+    }
+  }
+
+  onRoleChanged(isSpectator) {
+    this.isSpectator = isSpectator;
+    if (this.network.isHost) {
+      this.updateHostLobbyUI();
+    } else {
+      this.updateRoleUI();
+    }
+    window.showToast(isSpectator ? 'Đã chuyển sang vai trò: Khán Giả (Spectator) 👁️' : 'Đã chuyển sang vai trò: Đấu Thủ Thi Đấu ⚔️', 'success');
   }
 
   onPlayerDisconnectedInMatch(playerId) {
@@ -2841,7 +3346,9 @@ class ColorSpillGame {
       currentTurnIndex: this.currentTurnIndex,
       turnNumber: this.turnNumber,
       turnTimer: this.turnTimer,
-      remainingMoves: this.remainingMoves
+      remainingMoves: this.remainingMoves,
+      mainDeckCount: this.mainDeck ? this.mainDeck.length : 0,
+      discardDeckCount: this.discardDeck ? this.discardDeck.length : 0
     });
   }
 
@@ -2854,27 +3361,37 @@ class ColorSpillGame {
     this.remainingMoves = snapshot.remainingMoves;
 
     this.updateHUD();
-    this.renderHandCardsUI();
+    if (this.isSpectator) {
+      this.renderSpectatorInspectorUI();
+      const liveEl = document.getElementById('specLiveCount');
+      if (liveEl && this.network.lobbySpectators) {
+        liveEl.innerText = `👁️ ${this.network.lobbySpectators.length || 1} Khán Giả`;
+      }
+    } else {
+      this.renderHandCardsUI();
+    }
   }
 
   // ------------------------------------------------------
   // ONLINE ROOM DISCOVERY & JOIN HELPERS
   // ------------------------------------------------------
-  executeJoinRoom(code, password = '') {
+  executeJoinRoom(code, password = '', asSpectator = false) {
     const cleanCode = (code || '').trim().toUpperCase().replace(/^CSP-/, '').replace(/[^A-Z0-9]/g, '');
     if (!cleanCode) return;
 
-    const myName = (document.getElementById('playerNameInput').value || '').trim() || 'Người Chơi';
+    const myName = (document.getElementById('playerNameInput').value || '').trim() || (asSpectator ? 'Khán Giả' : 'Người Chơi');
     const activeColor = document.querySelector('.color-choice.active');
     const colorIdx = activeColor ? parseInt(activeColor.dataset.colorIdx, 10) : 1;
     const playerColor = PLAYER_PROFILES[colorIdx] ? PLAYER_PROFILES[colorIdx].color : PLAYER_PROFILES[1].color;
 
     const statusEl = document.getElementById('directJoinStatus');
     const joinBtn = document.getElementById('btnJoinDirect');
+    const specBtn = document.getElementById('btnSpectateDirect');
 
     if (joinBtn) joinBtn.disabled = true;
+    if (specBtn) specBtn.disabled = true;
     if (statusEl) {
-      statusEl.innerHTML = `<span class="spinner-inline">⏳</span> Đang tìm kiếm & kết nối tới phòng <strong class="text-teal">${cleanCode}</strong>...`;
+      statusEl.innerHTML = `<span class="spinner-inline">⏳</span> Đang tìm kiếm & kết nối tới phòng <strong class="text-teal">${cleanCode}</strong> ${asSpectator ? 'với tư cách <strong class="text-cyan">Khán Giả (Spectator)</strong>' : ''}...`;
       statusEl.className = 'join-status-text status-connecting';
     }
 
@@ -2882,23 +3399,29 @@ class ColorSpillGame {
       cleanCode,
       password,
       { name: myName, color: playerColor },
-      (c) => {
+      (c, isSpectator, isMatchActive) => {
         if (joinBtn) joinBtn.disabled = false;
+        if (specBtn) specBtn.disabled = false;
+        this.isSpectator = !!isSpectator;
+
         if (statusEl) {
           statusEl.innerHTML = `<span class="text-green">✅ Kết nối thành công tới phòng ${c}!</span>`;
           statusEl.className = 'join-status-text status-success';
         }
         document.getElementById('guestRoomCodeTitle').innerText = c;
-        this.showView('viewGuestWaiting');
+        if (!isMatchActive) {
+          this.showView('viewGuestWaiting');
+          this.updateRoleUI();
+        }
       },
       (err) => {
         if (joinBtn) joinBtn.disabled = false;
+        if (specBtn) specBtn.disabled = false;
         if (statusEl) {
           statusEl.innerHTML = `<span class="status-error-badge">❌</span> ${this.escapeHtml(String(err))}`;
           statusEl.className = 'join-status-text status-error';
         }
 
-        // If rejection was due to password, prompt user immediately
         const errStr = String(err).toLowerCase();
         if (errStr.includes('mật khẩu') || errStr.includes('password')) {
           setTimeout(async () => {
@@ -2909,17 +3432,18 @@ class ColorSpillGame {
               'password'
             );
             if (retryPass !== null && retryPass.trim() !== '') {
-              this.executeJoinRoom(cleanCode, retryPass.trim());
+              this.executeJoinRoom(cleanCode, retryPass.trim(), asSpectator);
             }
           }, 350);
         } else {
           window.appAlert(String(err), 'LỖI KẾT NỐI PHÒNG', 'error');
         }
-      }
+      },
+      asSpectator
     );
   }
 
-  async handleJoinFromRoomList(code, isPrivate) {
+  async handleJoinFromRoomList(code, isPrivate, asSpectator = false) {
     let password = '';
     if (isPrivate) {
       const input = await window.appPrompt(
@@ -2928,7 +3452,7 @@ class ColorSpillGame {
         'PHÒNG RIÊNG TƯ',
         'password'
       );
-      if (input === null) return; // User cancelled
+      if (input === null) return;
       password = input.trim();
       if (!password) {
         window.appAlert('Mật khẩu không được để trống!', 'CHÚ Ý', 'warning');
@@ -2937,7 +3461,7 @@ class ColorSpillGame {
     }
     const codeInput = document.getElementById('joinDirectCodeInput');
     if (codeInput) codeInput.value = code;
-    this.executeJoinRoom(code, password);
+    this.executeJoinRoom(code, password, asSpectator);
   }
 
   renderPublicRooms(rooms) {
@@ -2957,7 +3481,9 @@ class ColorSpillGame {
 
     container.innerHTML = rooms.map(room => {
       const isPrivate = !!room.isPrivate;
-      const count = room.count || 1;
+      const count = room.count || 0;
+      const specCount = room.spectatorCount || 0;
+      const isPlaying = !!room.isPlaying;
       const max = room.max || 4;
       const isFull = count >= max;
 
@@ -2969,19 +3495,28 @@ class ColorSpillGame {
               <span class="badge-privacy ${isPrivate ? 'badge-private' : 'badge-public'}">
                 ${isPrivate ? '🔒 Riêng Tư' : '🌐 Công Khai'}
               </span>
+              ${isPlaying ? '<span class="badge-live-stream"><span class="live-dot-mini"></span> 🔴 TRỰC TIẾP</span>' : ''}
             </div>
             <div class="room-meta-row">
               <span class="room-host">👑 Host: <strong>${this.escapeHtml(room.hostName || 'Chủ phòng')}</strong></span>
               <span class="room-capacity ${isFull ? 'text-coral' : 'text-teal'}">
-                👥 ${count}/${max} người
+                👥 ${count}/${max} đấu thủ
+              </span>
+              <span class="room-spec-count text-cyan">
+                👁️ ${specCount} khán giả
               </span>
               <span class="room-code-tag">Mã: <strong>${room.code}</strong></span>
             </div>
           </div>
-          <button type="button" class="btn-room-join ${isFull ? 'disabled' : (isPrivate ? 'btn-secondary' : 'btn-primary')}"
-            ${isFull ? 'disabled' : ''} data-code="${room.code}" data-private="${isPrivate}">
-            ${isFull ? 'ĐÃ ĐẦY' : (isPrivate ? '🔒 Vào Phòng' : '👉 Vào Ngay')}
-          </button>
+          <div class="room-card-actions">
+            <button type="button" class="btn-room-join ${isFull || isPlaying ? 'disabled' : (isPrivate ? 'btn-secondary' : 'btn-primary')}"
+              ${isFull || isPlaying ? 'disabled' : ''} data-code="${room.code}" data-private="${isPrivate}">
+              ${isPlaying ? 'ĐANG ĐẤU' : (isFull ? 'ĐÃ ĐỦ' : (isPrivate ? '🔒 Vào Đấu' : '👉 Vào Đấu'))}
+            </button>
+            <button type="button" class="btn-room-spectate btn-secondary" data-code="${room.code}" data-private="${isPrivate}" title="Vào xem trận đấu với tư cách Khán giả">
+              👁️ Vào Xem
+            </button>
+          </div>
         </div>
       `;
     }).join('');
@@ -2992,7 +3527,17 @@ class ColorSpillGame {
         sound.playClick();
         const code = btn.dataset.code;
         const isPrivate = btn.dataset.private === 'true';
-        this.handleJoinFromRoomList(code, isPrivate);
+        this.handleJoinFromRoomList(code, isPrivate, false);
+      });
+    });
+
+    container.querySelectorAll('.btn-room-spectate').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        sound.playClick();
+        const code = btn.dataset.code;
+        const isPrivate = btn.dataset.private === 'true';
+        this.handleJoinFromRoomList(code, isPrivate, true);
       });
     });
   }

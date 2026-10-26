@@ -40,6 +40,8 @@ class NetworkManager {
     this.connections = []; // For Host: list of guest data connections
     this.hostConn = null;  // For Guest: connection to host
     this.lobbyPlayers = [];
+    this.lobbySpectators = [];
+    this.isSpectator = false;
     this.peerPrefix = 'csp-tb-';
     this.myNetId = 0;
     this.guestClientId = 'g_' + Math.random().toString(36).substr(2, 9);
@@ -291,7 +293,9 @@ class NetworkManager {
       name: (this.roomInfo && this.roomInfo.name) || `Phòng ${this.roomCode}`,
       hostName: (this.roomInfo && this.roomInfo.hostName) || 'Chủ Phòng',
       isPrivate: !!(this.roomInfo && this.roomInfo.isPrivate),
-      count: this.lobbyPlayers.length || 1,
+      count: this.lobbyPlayers.length || 0,
+      spectatorCount: (this.lobbySpectators && this.lobbySpectators.length) || 0,
+      isPlaying: !!(this.game && this.game.isMatchActive),
       max: 4,
       timestamp: Date.now(),
       lastSeen: Date.now()
@@ -360,7 +364,8 @@ class NetworkManager {
   createRoom(config, localPlayerInfo, onReady, onError) {
     this.isHost = true;
     this.isOnline = true;
-    this.myNetId = 1; // Host is Player 1
+    this.isSpectator = !!config.isSpectator;
+    this.myNetId = this.isSpectator ? 0 : 1;
     this.connections = [];
     this.roomCode = this.generateRoomCode();
     const peerId = this.peerPrefix + this.roomCode.toLowerCase();
@@ -370,12 +375,21 @@ class NetworkManager {
       name: config.roomName || `Phòng của ${localPlayerInfo.name}`,
       hostName: localPlayerInfo.name,
       isPrivate: !!config.isPrivate,
-      password: config.password ? String(config.password).trim() : ''
+      password: config.password ? String(config.password).trim() : '',
+      hostIsSpectator: this.isSpectator
     };
 
-    this.lobbyPlayers = [
-      { id: 1, name: localPlayerInfo.name, color: localPlayerInfo.color, isHost: true }
-    ];
+    if (this.isSpectator) {
+      this.lobbyPlayers = [];
+      this.lobbySpectators = [
+        { id: 0, name: localPlayerInfo.name, color: localPlayerInfo.color, isHost: true, isSpectator: true }
+      ];
+    } else {
+      this.lobbyPlayers = [
+        { id: 1, name: localPlayerInfo.name, color: localPlayerInfo.color, isHost: true }
+      ];
+      this.lobbySpectators = [];
+    }
 
     // Announce room immediately on both local storage and MQTT
     this.subscribeToRoomMqtt(this.roomCode);
@@ -398,9 +412,6 @@ class NetworkManager {
     }
 
     this.peer.on('open', () => {
-      this.lobbyPlayers = [
-        { id: 1, name: localPlayerInfo.name, color: localPlayerInfo.color, isHost: true }
-      ];
       this.startRoomHeartbeat();
       if (onReady) onReady(this.roomCode, this.roomInfo);
     });
@@ -422,8 +433,10 @@ class NetworkManager {
 
       conn.on('close', () => {
         const disconnectedPlayer = this.lobbyPlayers.find(p => p.connId === conn.peer);
+        const disconnectedSpec = this.lobbySpectators.find(s => s.connId === conn.peer);
         this.connections = this.connections.filter(c => c !== conn);
         this.lobbyPlayers = this.lobbyPlayers.filter(p => p.connId !== conn.peer);
+        this.lobbySpectators = this.lobbySpectators.filter(s => s.connId !== conn.peer);
         this.broadcastLobbyState();
         this.broadcastRoomHeartbeatOnce();
 
@@ -452,9 +465,11 @@ class NetworkManager {
   // ----------------------------------------------------
   // GUEST: JOIN ROOM (HYBRID WEBRTC + MQTT CLOUD RELAY)
   // ----------------------------------------------------
-  joinRoom(code, password, localPlayerInfo, onJoined, onError) {
+  joinRoom(code, password, localPlayerInfo, onJoined, onError, asSpectator = false) {
     this.isHost = false;
     this.isOnline = true;
+    this.isSpectator = !!asSpectator;
+    this.myNetId = this.isSpectator ? 0 : 0;
     clearTimeout(this.joinTimeout);
     clearInterval(this.joinRetryInterval);
 
@@ -481,6 +496,7 @@ class NetworkManager {
     const joinPayload = {
       type: 'JOIN_REQUEST',
       guestClientId: this.guestClientId,
+      isSpectator: this.isSpectator,
       player: {
         name: localPlayerInfo.name,
         color: localPlayerInfo.color
@@ -580,12 +596,12 @@ class NetworkManager {
     }
 
     // Hook internal callbacks into instance so handleGuestReceivedData can trigger onJoined/onError
-    this._onJoined = (roomCode) => {
+    this._onJoined = (roomCode, isSpectator, isMatchActive) => {
       if (hasHandledSuccess) return;
       hasHandledSuccess = true;
       clearInterval(this.joinRetryInterval);
       clearTimeout(this.joinTimeout);
-      if (onJoined) onJoined(roomCode);
+      if (onJoined) onJoined(roomCode, isSpectator, isMatchActive);
     };
 
     this._onJoinRejected = (reason) => {
@@ -596,6 +612,65 @@ class NetworkManager {
       this.disconnect();
       if (onError) onError(reason);
     };
+  }
+
+  requestRoleSwitch(targetRole) {
+    if (this.isHost) {
+      if (targetRole === 'spectator') {
+        this.isSpectator = true;
+        this.myNetId = 0;
+        const hostP = this.lobbyPlayers.find(p => p.isHost);
+        if (hostP) {
+          this.lobbyPlayers = this.lobbyPlayers.filter(p => !p.isHost);
+          this.lobbyPlayers.forEach((p, idx) => { p.id = idx + 1; });
+          if (!this.lobbySpectators.some(s => s.isHost)) {
+            this.lobbySpectators.push({
+              id: 0,
+              name: hostP.name,
+              color: hostP.color,
+              isHost: true,
+              isSpectator: true
+            });
+          }
+        }
+      } else {
+        if (this.lobbyPlayers.length >= 4) {
+          if (window.showToast) window.showToast('Phòng đấu thủ đã đầy (4/4)!', 'warning');
+          return;
+        }
+        this.isSpectator = false;
+        this.myNetId = 1;
+        const hostS = this.lobbySpectators.find(s => s.isHost);
+        this.lobbySpectators = this.lobbySpectators.filter(s => !s.isHost);
+        this.lobbyPlayers.unshift({
+          id: 1,
+          name: (hostS && hostS.name) || (this.roomInfo && this.roomInfo.hostName) || 'Chủ phòng',
+          color: (hostS && hostS.color) || '#1acc33',
+          isHost: true
+        });
+        this.lobbyPlayers.forEach((p, idx) => { p.id = idx + 1; });
+      }
+      this.broadcastLobbyState();
+      this.broadcastRoomHeartbeatOnce();
+      if (this.game && this.game.onRoleChanged) {
+        this.game.onRoleChanged(this.isSpectator);
+      }
+    } else {
+      const msg = {
+        type: 'ROLE_SWITCH_REQUEST',
+        targetRole: targetRole,
+        guestClientId: this.guestClientId,
+        msgId: 'role_' + this.guestClientId + '_' + Date.now()
+      };
+      if (this.hostConn && this.hostConn.open) {
+        try { this.hostConn.send(msg); } catch (e) {}
+      }
+      if (this.mqttClient && this.mqttClient.connected && this.roomCode) {
+        try {
+          this.mqttClient.publish(`colorspill/arena/room/${this.roomCode}/to_host`, JSON.stringify(msg), { qos: 0 });
+        } catch (e) {}
+      }
+    }
   }
 
   // ----------------------------------------------------
@@ -639,6 +714,7 @@ class NetworkManager {
 
     if (data.type === 'JOIN_REQUEST') {
       const guestClientId = data.guestClientId || (conn ? conn.peer : null);
+      const isSpectator = !!data.isSpectator;
 
       if (this.roomInfo && this.roomInfo.isPrivate) {
         const guestPass = (data.password || '').trim();
@@ -653,10 +729,75 @@ class NetworkManager {
         }
       }
 
+      // SPECTATOR JOIN LOGIC (Esports Liên Quân Tournament Spectator)
+      if (isSpectator) {
+        if (conn && !this.connections.includes(conn)) {
+          this.connections.push(conn);
+        }
+
+        let existingSpec = this.lobbySpectators.find(s => (guestClientId && s.guestClientId === guestClientId) || (conn && s.connId === conn.peer));
+        if (!existingSpec) {
+          existingSpec = {
+            id: 0,
+            name: (data.player && data.player.name) || 'Khán giả',
+            color: (data.player && data.player.color) || '#00e5ff',
+            connId: conn ? conn.peer : null,
+            guestClientId: guestClientId,
+            isSpectator: true
+          };
+          this.lobbySpectators.push(existingSpec);
+        }
+
+        const isMatchActive = !!(this.game && this.game.isMatchActive);
+
+        this.sendToGuest(conn, guestClientId, {
+          type: 'JOIN_SUCCESS',
+          myId: 0,
+          isSpectator: true,
+          roomCode: this.roomCode,
+          isMatchActive: isMatchActive,
+          players: this.lobbyPlayers,
+          spectators: this.lobbySpectators
+        });
+
+        // If match is already in progress, immediately transmit active state so spectator views live immediately!
+        if (isMatchActive && this.game) {
+          this.sendToGuest(conn, guestClientId, {
+            type: 'GAME_START',
+            matchData: {
+              matchMode: this.game.players.length,
+              players: this.game.players,
+              board: this.game.grid,
+              currentTurnIndex: this.game.currentTurnIndex
+            },
+            isSpectator: true
+          });
+
+          this.sendToGuest(conn, guestClientId, {
+            type: 'HOST_SNAPSHOT',
+            snapshot: {
+              grid: this.game.grid,
+              players: this.game.players,
+              currentTurnIndex: this.game.currentTurnIndex,
+              turnNumber: this.game.turnNumber,
+              turnTimer: this.game.turnTimer,
+              remainingMoves: this.game.remainingMoves,
+              mainDeckCount: this.game.mainDeck ? this.game.mainDeck.length : 0,
+              discardDeckCount: this.game.discardDeck ? this.game.discardDeck.length : 0
+            }
+          });
+        }
+
+        this.broadcastLobbyState();
+        this.broadcastRoomHeartbeatOnce();
+        return;
+      }
+
+      // REGULAR PLAYER JOIN LOGIC
       if (this.lobbyPlayers.length >= 4) {
         this.sendToGuest(conn, guestClientId, {
           type: 'JOIN_REJECT',
-          reason: 'Phòng đã đủ tối đa 4 người chơi!'
+          reason: 'Phòng đã đủ tối đa 4 đấu thủ! Bạn có thể vào phòng với tư cách Khán giả (Spectator).'
         });
         if (conn) setTimeout(() => { try { conn.close(); } catch (e) {} }, 600);
         return;
@@ -665,7 +806,7 @@ class NetworkManager {
       if (this.game && this.game.isMatchActive) {
         this.sendToGuest(conn, guestClientId, {
           type: 'JOIN_REJECT',
-          reason: 'Trận đấu đang diễn ra, không thể tham gia lúc này!'
+          reason: 'Trận đấu đang diễn ra! Bạn có thể vào phòng với tư cách Khán giả (Spectator) để xem trực tiếp.'
         });
         if (conn) setTimeout(() => { try { conn.close(); } catch (e) {} }, 600);
         return;
@@ -693,11 +834,77 @@ class NetworkManager {
       this.sendToGuest(conn, guestClientId, {
         type: 'JOIN_SUCCESS',
         myId: assignedId,
-        roomCode: this.roomCode
+        isSpectator: false,
+        roomCode: this.roomCode,
+        isMatchActive: false
       });
 
       this.broadcastLobbyState();
       this.broadcastRoomHeartbeatOnce();
+    }
+    else if (data.type === 'ROLE_SWITCH_REQUEST') {
+      const guestClientId = data.guestClientId || (conn ? conn.peer : null);
+      const targetRole = data.targetRole; // 'player' or 'spectator'
+
+      if (targetRole === 'spectator') {
+        const pIdx = this.lobbyPlayers.findIndex(p => (guestClientId && p.guestClientId === guestClientId) || (conn && p.connId === conn.peer));
+        if (pIdx !== -1) {
+          const p = this.lobbyPlayers[pIdx];
+          this.lobbyPlayers.splice(pIdx, 1);
+          this.lobbyPlayers.forEach((lp, idx) => { lp.id = idx + 1; });
+          this.lobbySpectators.push({
+            id: 0,
+            name: p.name,
+            color: p.color,
+            connId: p.connId,
+            guestClientId: p.guestClientId,
+            isSpectator: true
+          });
+          this.sendToGuest(conn, guestClientId, {
+            type: 'ROLE_SWITCH_SUCCESS',
+            isSpectator: true,
+            myId: 0
+          });
+          this.broadcastLobbyState();
+          this.broadcastRoomHeartbeatOnce();
+        }
+      } else if (targetRole === 'player') {
+        if (this.lobbyPlayers.length >= 4) {
+          this.sendToGuest(conn, guestClientId, {
+            type: 'ROLE_SWITCH_FAIL',
+            reason: 'Phòng đã đủ tối đa 4 đấu thủ!'
+          });
+          return;
+        }
+        if (this.game && this.game.isMatchActive) {
+          this.sendToGuest(conn, guestClientId, {
+            type: 'ROLE_SWITCH_FAIL',
+            reason: 'Trận đấu đang diễn ra, không thể chuyển sang đấu thủ!'
+          });
+          return;
+        }
+        const sIdx = this.lobbySpectators.findIndex(s => (guestClientId && s.guestClientId === guestClientId) || (conn && s.connId === conn.peer));
+        if (sIdx !== -1) {
+          const s = this.lobbySpectators[sIdx];
+          this.lobbySpectators.splice(sIdx, 1);
+          const newId = this.lobbyPlayers.length + 1;
+          this.lobbyPlayers.push({
+            id: newId,
+            name: s.name,
+            color: s.color,
+            connId: s.connId,
+            guestClientId: s.guestClientId,
+            isHost: false
+          });
+          this.sendToGuest(conn, guestClientId, {
+            type: 'ROLE_SWITCH_SUCCESS',
+            isSpectator: false,
+            myId: newId
+          });
+          this.broadcastLobbyState();
+          this.broadcastRoomHeartbeatOnce();
+        }
+      }
     }
     else if (data.type === 'CLIENT_ACTION') {
       if (this.game && this.game.handleClientTurnAction) {
@@ -709,10 +916,11 @@ class NetworkManager {
   broadcastLobbyState() {
     this.broadcastToAll({
       type: 'LOBBY_STATE',
-      players: this.lobbyPlayers
+      players: this.lobbyPlayers,
+      spectators: this.lobbySpectators
     });
     if (this.game && this.game.onLobbyUpdate) {
-      this.game.onLobbyUpdate(this.lobbyPlayers);
+      this.game.onLobbyUpdate(this.lobbyPlayers, this.lobbySpectators);
     }
   }
 
@@ -727,6 +935,13 @@ class NetworkManager {
     this.broadcastToAll({
       type: 'HOST_SNAPSHOT',
       snapshot: snapshot
+    });
+  }
+
+  broadcastEsportsCombatEvent(eventData) {
+    this.broadcastToAll({
+      type: 'ESPORTS_COMBAT_EVENT',
+      event: eventData
     });
   }
 
@@ -745,26 +960,51 @@ class NetworkManager {
 
     if (data.type === 'JOIN_SUCCESS') {
       this.myNetId = data.myId;
+      this.isSpectator = !!data.isSpectator;
+      if (this.game) {
+        this.game.isSpectator = this.isSpectator;
+      }
+      if (data.players) this.lobbyPlayers = data.players;
+      if (data.spectators) this.lobbySpectators = data.spectators;
+
       if (this._onJoined) {
-        this._onJoined(this.roomCode);
+        this._onJoined(this.roomCode, this.isSpectator, !!data.isMatchActive);
       }
     } else if (data.type === 'JOIN_REJECT') {
       if (this._onJoinRejected) {
         this._onJoinRejected(data.reason || 'Bị từ chối tham gia phòng!');
       }
       return;
+    } else if (data.type === 'ROLE_SWITCH_SUCCESS') {
+      this.isSpectator = !!data.isSpectator;
+      this.myNetId = data.myId;
+      if (this.game) {
+        this.game.isSpectator = this.isSpectator;
+        if (this.game.onRoleChanged) {
+          this.game.onRoleChanged(this.isSpectator);
+        }
+      }
+    } else if (data.type === 'ROLE_SWITCH_FAIL') {
+      if (window.showToast) {
+        window.showToast(data.reason || 'Không thể đổi vai trò!', 'warning');
+      }
     } else if (data.type === 'LOBBY_STATE') {
       this.lobbyPlayers = data.players;
+      this.lobbySpectators = data.spectators || [];
       if (this.game && this.game.onLobbyUpdate) {
-        this.game.onLobbyUpdate(this.lobbyPlayers);
+        this.game.onLobbyUpdate(this.lobbyPlayers, this.lobbySpectators);
       }
     } else if (data.type === 'GAME_START') {
       if (this.game && this.game.startOnlineMatchAsGuest) {
-        this.game.startOnlineMatchAsGuest(data.matchData, this.myNetId);
+        this.game.startOnlineMatchAsGuest(data.matchData, this.myNetId, this.isSpectator);
       }
     } else if (data.type === 'HOST_SNAPSHOT') {
       if (this.game && this.game.applyHostSnapshot) {
         this.game.applyHostSnapshot(data.snapshot);
+      }
+    } else if (data.type === 'ESPORTS_COMBAT_EVENT') {
+      if (this.game && this.game.onEsportsCombatEvent) {
+        this.game.onEsportsCombatEvent(data.event);
       }
     } else if (data.type === 'GAME_OVER') {
       if (this.game && this.game.finishMatch) {
@@ -803,8 +1043,11 @@ class NetworkManager {
     this.stopRoomHeartbeat();
     this.isOnline = false;
     this.isHost = false;
+    this.isSpectator = false;
     this.roomCode = null;
     this.roomInfo = null;
+    this.lobbyPlayers = [];
+    this.lobbySpectators = [];
     this.connections.forEach(c => {
       try { c.close(); } catch (e) {}
     });
